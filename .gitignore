@@ -5,7 +5,7 @@ __pycache__/
 
 # C extensions
 *.so
-
+.devcontainer/
 # Distribution / packaging
 .Python
 build/
@@ -201,7 +201,66 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 
+.vscode/
 # Marimo
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# -----------------------------
+# ROS 2 specific
+# -----------------------------
+# ROS 2 build, install, and log directories
+/build/
+/install/
+/log/
+/install_isolated/
+/build_isolated/
+/src/install/
+/src/log/
+# ROS 2 workspace overlays
+/ros2_ws/build/
+/ros2_ws/install/
+/ros2_ws/log/
+
+# CMake files and generated artifacts
+CMakeFiles/
+CMakeCache.txt
+*.cmake
+*.swp
+
+# -----------------------------
+# Docker specific
+# -----------------------------
+# Docker environment files
+*.env
+.env.local
+.env.*.local
+docker-compose.override.yml
+
+# Docker volumes (if used)
+volumes/
+
+# Docker build artifacts
+build/
+dist/
+.docker/
+
+# -----------------------------
+# Logs and OS files
+# -----------------------------
+*.log
+*.tmp
+*.swp
+.DS_Store
+Thumbs.db
+
+# -----------------------------
+# Python / ROS2 Python packages
+# -----------------------------
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+
