@@ -116,6 +116,7 @@ RUN make install
 WORKDIR /workspaces/IMAV-videostream/
 RUN git config --global --add safe.directory /workspaces/IMAV-videostream/build/camera_node/_deps/grabthecam-src
 
+
 # ------------------------------------------------------------
 # 4. ROS Umgebung automatisch laden
 # ------------------------------------------------------------
