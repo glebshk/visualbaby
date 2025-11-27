@@ -12,13 +12,16 @@ import numpy as np
 class CameraNode(Node):
     def __init__(self):
         super().__init__('my_python_node')
+
+        # Declare Parameters
+        self.get_logger().info("Streaming Node start")
         self.declare_parameter("message_text", "Default message")
         self.declare_parameter("camera_topic", "camera/front/rgb")
         self.declare_parameter("camera_type", "USBCam")
         self.declare_parameter("camera_ID", 0)
         self.declare_parameter("camera_Serial", "")
         
-        self.get_logger().info("Streaming Node started")
+        
         self.start_timer = self.create_timer(0.1, self.init_after_init)  # Delay init to allow parameter setting
     
     def init_after_init(self):
@@ -44,7 +47,8 @@ class CameraNode(Node):
         
         # Initialize Camera
         if self.camera_type == "Realsense":
-            camera_topic_depth = self.get_parameter("camera_topic").value + "_depth"
+            camera_topic_depth = self.get_parameter("camera_topic").value.replace("rgb","") + "depth"
+            self.get_logger().info(f"Publishing to topic: {self.get_parameter('camera_topic').value.replace('rgb','depth')}") 
             self.camera_depth = self.create_publisher(Image,camera_topic_depth, cfg.ROS_MESSSAGE_QUEUE_SIZE)
             self.init_reasense()
 
@@ -58,13 +62,16 @@ class CameraNode(Node):
 
     def init_reasense(self):
         # 1. Pipeline und Konfiguration erstellen
-        self.pipeline = rs.pipeline(self.camera_Serial)
+        self.pipeline = rs.pipeline()
         config = rs.config()
         config.enable_stream(rs.stream.color, cfg.CAM_PIXEL_WIDTH, cfg.CAM_PIXEL_HEIGHT, rs.format.bgr8, cfg.CAM_FPS)
         config.enable_stream(rs.stream.depth, cfg.CAM_PIXEL_WIDTH, cfg.CAM_PIXEL_HEIGHT, rs.format.z16, cfg.CAM_FPS)
 
         # 2. Pipeline starten
         self.pipeline.start(config)
+
+        # Colormap
+        self.colorizer = rs.colorizer()
 
     def init_USBCam(self):
         self.cap_USB = cv2.VideoCapture(self.camera_ID)
@@ -79,16 +86,17 @@ class CameraNode(Node):
             frames = self.pipeline.wait_for_frames()
             color_frame = frames.get_color_frame()
             depth_frame = frames.get_depth_frame()
+            depth_frame_color = self.colorizer.colorize(depth_frame)
             if not color_frame:
                 return
             # Convert images to numpy arrays
             color_image = np.asanyarray(color_frame.get_data())
-            depth_image = np.asanyarray(depth_frame.get_data())
+            depth_image = np.asanyarray(depth_frame_color.get_data())
 
             # Convert to ROS Image message
             img_msg = self.bridge.cv2_to_imgmsg(color_image, encoding="bgr8")
             self.camera.publish(img_msg)
-            depth_msg = self.bridge.cv2_to_imgmsg(depth_image, encoding="16UC1")
+            depth_msg = self.bridge.cv2_to_imgmsg(depth_image, encoding="bgr8")
             self.camera_depth.publish(depth_msg)
 
         elif self.camera_type == "USBCam":
@@ -98,6 +106,7 @@ class CameraNode(Node):
 
             # Convert to ROS Image message
             img_msg = self.bridge.cv2_to_imgmsg(frame, encoding="bgr8")
+            #self.get_logger().debug("push frame capture")
             self.camera.publish(img_msg)
 
 def main(args=None):
