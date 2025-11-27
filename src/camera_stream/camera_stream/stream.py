@@ -1,192 +1,121 @@
-#!/usr/bin/env python3
-import faulthandler
-faulthandler.enable(all_threads=True)
-
+# ROS Imports
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import String
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
-import numpy as np
-import threading
-import camera_stream.variables as cfg
-import cv2
+
+# GStreamer Imports
 import gi
 gi.require_version('Gst', '1.0')
 gi.require_version('GstRtspServer', '1.0')
-from gi.repository import GstRtspServer
-print("start (module)")
+from gi.repository import Gst, GLib, GstRtspServer
 
-class MyNode(Node):
+# Import OpenCV, Numpy, time, threading and config variables
+import cv2
+import threading
+import numpy as np
+import time
+import camera_stream.config as cfg
+
+# Define latest Frames
+latest_frnt_rgb_frame = None
+latest_frnt_depth_frame = None
+latest_bttn_rgb_frame = None
+latest_bttn_depth_frame = None
+
+# Stream Node
+class RTSPPublisher(Node):
     def __init__(self):
-        print("inti waierjawnode")
-        super().__init__('cam_stream')
-        print("inti node")
-        # --- Parameter ---
-        self.declare_parameter("message_text", "Hallo ROS2!")
-        self.msg_text = self.get_parameter("message_text").value
+        super().__init__('RTSP_publisher')
 
-        # --- Publisher ---
-        self.publisher = self.create_publisher(String, "chatter", 10)
-
-        # Init Bridge for Image Conversion
+        # Import CV Bridge (Connection between ROS Messages and OpenCV) 
         self.bridge = CvBridge()
 
-        # Subscription Bottom Camera Image
-        self.sub_image_bttn = self.create_subscription(
-            Image,
-            "Camera/CAM_bottom",
-            self.recieve_image_bottom,
-            cfg.ROS_QUEUE_SIZE
-        )
+        # Subscriber of camera Streams
+        self.create_subscription(Image, f'{cfg.ROS_CAMERA_TOPICS_FRNT}rgb', self.image_frnt_rgb_callback, cfg.ROS_QUEUE_SIZE)
+        self.create_subscription(Image, f'{cfg.ROS_CAMERA_TOPICS_FRNT}depth', self.image_frnt_depth_callback, cfg.ROS_QUEUE_SIZE)
+        self.create_subscription(Image, f'{cfg.ROS_CAMERA_TOPICS_BTTN}rgb', self.image_bttn_rgb_callback, cfg.ROS_QUEUE_SIZE)
+        self.create_subscription(Image, f"{cfg.ROS_CAMERA_TOPICS_BTTN}depth",self.image_bttn_depth_callback, cfg.ROS_QUEUE_SIZE)
 
-        # Subscription Front Camera Image
-        self.subg_image_frnt = self.create_subscription(
-            Image,
-            "Camera/CAM_front",
-            self.recieve_image_front,
-            cfg.ROS_QUEUE_SIZE
-        )
+        # GStreamer Thread
+        self.gst_thread = threading.Thread(target=self.gst_loop)
+        self.gst_thread.daemon = True
+        self.gst_thread.start()
 
-        # Start GStreamer RTSP server in background thread (safe)
-        # Do the heavy GStreamer imports and init inside this method (not at module import)
-        self.gst_ok = False
-        self.init_gstreamer()
+    def image_frnt_rgb_callback(self, msg):
+        # Image front Camera Callback Message
+        global latest_frnt_rgb_frame
+        self.get_logger().debug("get front rgb image")
+        
+        # ROS Message to CV frame
+        cv_img = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+        latest_frnt_rgb_frame = cv_img
+    
+    def image_frnt_depth_callback(self, msg):
+        # Image front Camera Callback Message
+        global latest_frnt_depth_frame
+        self.get_logger().debug("get front depth image")
+        # ROS Message to CV frame
+        cv_img = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+        latest_frnt_depth_frame = cv_img
 
-        self.get_logger().info("Streaming Node started")
+    def image_bttn_rgb_callback(self,msg):
+        # Image Bottom Camera Callback Message
+        global latest_bttn_rgb_frame
+        self.get_logger().debug("get bottom rgb image")
+        
+        #ROS Message to CV frame
+        cv_img = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+        latest_bttn_rgb_frame = cv_img
 
-    def init_gstreamer(self):
-        # Import and initialize gi / Gst here to avoid top-level init-order problems
-        try:
-            import gi
-            gi.require_version('Gst', '1.0')
-            gi.require_version('GstRtspServer', '1.0')
-            from gi.repository import Gst, GstRtspServer, GLib
-        except Exception as e:
-            self.get_logger().error(f"Failed to import GStreamer/GI: {e}")
-            return
+    def image_bttn_depth_callback(self,msg):
+        # Image Bottom Camera Callback Message
+        global latest_bttn_depth_frame
+        self.get_logger().debug("get bottom depth image")
+        
+        #ROS Message to CV frame
+        cv_img = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+        latest_bttn_depth_frame = cv_img
 
-        try:
-            Gst.init(None)
-        except Exception as e:
-            self.get_logger().error(f"Gst.init failed: {e}")
-            return
+    def gst_loop(self):
+        self.get_logger().info("Start GStreamer Main Loop")
 
-        try:
-            self._Gst = Gst
-            self._GstRtspServer = GstRtspServer
-            self._GLib = GLib
+        # Init Gsteamer Server Mainloop
+        Gst.init(None)
+        loop = GLib.MainLoop()
+        self.frame_count = 0
+        
+        # Init RTSP Server
+        server = GstRtspServer.RTSPServer()
+        server.props.service = str(cfg.STREAM_PORT)
+        server.attach(None)
 
-            self.get_logger().info("Starting RTSP Server...")
+        # Setup GStreamer Pipline
+        factory = GstRtspServer.RTSPMediaFactory()
+        factory.set_launch(cfg.GSTREAMER_PIPLINE)
+        factory.set_shared(True)
 
-            # Init GStreamer RTSP Server
-            self.STREAM = SensorFactory(self._Gst)
-            self.STREAM.set_shared(True)
-            self.server = self._GstRtspServer.RTSPServer()
-            self.mounts = self.server.get_mount_points()
-            self.mounts.add_factory(cfg.STREAM_MOUNT, self.STREAM)
-            self.server.attach(None)
+        # Mount RTSP Stream
+        server.get_mount_points().add_factory(f"/{cfg.STREAM_MOUNT}", factory)
+        self.get_logger().info(f"GStreamer Pipline mounted at rtsp://localhost:{cfg.STREAM_PORT}/{cfg.STREAM_MOUNT}")
+        
+        # Appsrc Zugriff
+        def on_media_configure(factory, media):
+            # Get Data for Stream
+            appsrc = media.get_element().get_child_by_name('mysource')
 
-            # create and run GLib.MainLoop in background daemon thread
-            self.loop = self._GLib.MainLoop()
-            self.stream_thread = threading.Thread(target=self.loop.run, daemon=True)
-            self.stream_thread.start()
+            # Add frames to queue
+            GLib.timeout_add(int(1000/cfg.STREAM_FPS), self.push_frame, appsrc)
+        
+        # Start Mounted RTSP Stream
+        factory.connect("media-configure", on_media_configure)
 
-            self.gst_ok = True
-            self.get_logger().info("GStreamer main loop started in background thread")
-        except Exception as e:
-            self.get_logger().error(f"Failed to start GStreamer RTSP server: {e}")
-            self.gst_ok = False
-
-    def recieve_image_bottom(self, msg):
-        # Convert ROS Image to OpenCV Image
-        try:
-            cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
-            cfg.latest_frame_bttn = np.ascontiguousarray(cv_image, dtype=np.uint8)
-        except Exception as e:
-            self.get_logger().error(f"receive_image_bottom: {e}")
-
-    def recieve_image_front(self, msg):
-        # Convert ROS Image to OpenCV Image
-        try:
-            cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
-            cfg.latest_frame_frnt = np.ascontiguousarray(cv_image, dtype=np.uint8)
-        except Exception as e:
-            self.get_logger().error(f"receive_image_front: {e}")
-
-    def timer_callback(self):
-        msg = String()
-        msg.data = self.msg_text
-        self.publisher.publish(msg)
-        self.get_logger().info(f"Publishe: '{msg.data}'")
-
-
-class SensorFactory(GstRtspServer.RTSPMediaFactory):
-    def __init__(self, Gst):
-        super().__init__()
-        self.Gst = Gst
-        self.number_frames = 0
-        self.launch = cfg.GSTREAMER_PIPLINE
-
-    def do_create_element(self, url):
-        self.get_logger().info(f"Start RTSP stream")
-        element = self.Gst.parse_launch(self.launch)
-        appsrc = element.get_child_by_name(cfg.STREAM_OBJECT)
-        if appsrc:
-            appsrc.connect('need-data', self.on_need_data)
-        return element
-
-    def on_need_data(self, src, length):
-        try:
-            latest_b = cfg.latest_frame_bttn
-            latest_f = cfg.latest_frame_frnt
-
-            status_image = [0, 0]
-            if latest_b is None:
-                status_image[0] = 1
-            if latest_f is None:
-                status_image[1] = 1
-
-            if status_image == [1, 1]:
-                if cfg.debug:
-                    self.get_logger().error("No camera stream available! both frames missing")
-                return
-
-            if status_image == [0, 0]:
-                left = self.pad_image_to_size(latest_f.copy(), "left")
-                right = self.pad_image_to_size(latest_b.copy(), "right")
-                frame = np.vstack((left, right))
-            elif status_image == [1, 0]:
-                frame = latest_b.copy()
-            elif status_image == [0, 1]:
-                frame = latest_f.copy()
-            else:
-                return
-
-            frame = np.ascontiguousarray(frame, dtype=np.uint8)
-
-            size = frame.nbytes
-            if size == 0:
-                return
-
-            buf = self.Gst.Buffer.new_allocate(None, size, None)
-            buf.fill(0, frame.tobytes())
-            buf.duration = self.Gst.util_uint64_scale_int(1, self.Gst.SECOND, cfg.STREAM_FPS)
-            timestamp = self.number_frames * buf.duration
-            buf.pts = buf.dts = timestamp
-            buf.offset = timestamp
-            self.number_frames += 1
-
-            if cfg.debug:
-                print(f"[#]Pushing frame #{self.number_frames}")
-
-            src.emit('push-buffer', buf)
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            print(f"on_need_data exception: {e}")
-
+        # Start GStreamer mainloop/ Thead
+        loop.run()
+    
+    
     def pad_image_to_size(self, img, side):
+        # Pad image to size
         h, w = img.shape[:2]
         border_width = max(0, cfg.STREAM_PIXEL_WIDTH - w)
         border_height = max(0, cfg.STREAM_PIXEL_HEIGHT - h)
@@ -198,7 +127,7 @@ class SensorFactory(GstRtspServer.RTSPMediaFactory):
             pad_left = 0
             pad_right = border_width
 
-        top = border_height // 2
+        top = int(border_height / 2)
         bottom = border_height - top
 
         img_padded = cv2.copyMakeBorder(
@@ -206,19 +135,133 @@ class SensorFactory(GstRtspServer.RTSPMediaFactory):
             borderType=cv2.BORDER_CONSTANT, value=cfg.COLOR_BORDER
         )
         return img_padded
+    
+    def get_frame(self):
+        # Get frame
+        global latest_frnt_rgb_frame
+        global latest_frnt_depth_frame
+        global latest_bttn_rgb_frame
+        global latest_bttn_depth_frame
+
+        # Check which camera stream is available
+        # camera available [frnt_rgb, frnt_depth, bttn_rgb, bttn_depth]
+        # 0 not availabe 1 available
+        status_image = [0, 0, 0, 0] 
+        
+        # Front RGB frame is available
+        if latest_frnt_rgb_frame is not None:
+            status_image[0] = 1
+        
+        # Front Depth frame is available
+        if latest_frnt_depth_frame is not None:
+            status_image[1] = 1
+
+        # Bottom RGB frame is available
+        if latest_bttn_rgb_frame is not None:
+            status_image[2] = 1
+        
+        # Bottom Depth frame is available
+        if latest_bttn_depth_frame is not None:
+            status_image[3] = 1
+        
+        # No image available
+        if status_image == [0,0,0,0]:
+            self.get_logger().info("No camera is available")
+            return
+
+        # RGB Cameras available
+        if status_image == [1,0,1,0]:
+            self.get_logger().debug("Both RGB Cameras are available")
+            left = self.pad_image_to_size(latest_frnt_frame.copy(), "left")
+            right = self.pad_image_to_size(latest_bttn_frame.copy(), "right")
+            self.frame = np.vstack((left, right))
+        
+        # Front RGB Camera 
+        elif status_image == [1,0,0,0]:
+            self.get_logger().debug("Front RGB Camera available")
+            self.frame = latest_frnt_rgb_frame.copy()
+        
+        # Bottom RGB Camera available
+        elif status_image == [0,0,1,0]:
+            self.get_logger().debug("Bottom RGB Camera available")
+            self.frame = latest_bttn_rgb_frame.copy()
+        
+        # RGB + Depth Camera front available
+        elif status_image == [1,1,0,0]:
+            self.get_logger().debug("RGB and Depth Camera front available")
+            left = self.pad_image_to_size(latest_frnt_rgb_frame.copy(), "left")
+            right = self.pad_image_to_size(latest_frnt_depth_frame.copy(), "right")
+            self.frame = np.vstack((left, right))
+        
+        # RGB + Depth Camera bottom available
+        elif status_image == [0,0,1,1]:
+            self.get_logger().debug("RGB and Depth Camera bottom available")
+            left = self.pad_image_to_size(latest_bttn_rgb_frame.copy(), "left")
+            right = self.pad_image_to_size(latest_bttn_depth_frame.copy(), "right")
+            self.frame = np.vstack((left, right))
+
+        # RBG front and RGB + depth bottom
+        elif status_image == [1,0,1,1]:
+            self.get_logger().debug("RGB and Depth Camera bottom + RGB front available")
+            frame_left = np.hstack((latest_bttn_rgb_frame.copy(),latest_bttn_depth_frame.copy()))
+            left = self.pad_image_to_size(latest_frnt_rgb_frame, "left")
+            right = self.pad_image_to_size(frame_left, "right")
+            self.frame = np.vstack((left, right))
+        
+        # RGB + Depth front and RGB bottom
+        elif status_image == [1,1,1,0]:
+            self.get_logger().debug("RGB and Depth Camera front + RGB bottom available")
+            frame_left = np.hstack((latest_frnt_rgb_frame.copy(),latest_frnt_depth_frame.copy()))
+            left = self.pad_image_to_size(frame_left, "left")
+            right = self.pad_image_to_size(latest_bttn_rgb_frame.copy(), "right")
+            self.frame = np.vstack((left, right))
+
+        # RGB + Depth front and bottom
+        elif status_image == [1,1,1,1]:
+            self.get_logger().debug("RGB and Depth Camera front + RGB and Depth bottom available")
+            frame_right = np.hstack((latest_bttn_rgb_frame.copy(),latest_bttn_depth_frame.copy()))
+            frame_left = np.hstack((latest_frnt_rgb_frame.copy(),latest_frnt_depth_frame.copy()))
+            left = self.pad_image_to_size(frame_left, "left")
+            right = self.pad_image_to_size(frame_right, "right")
+            self.frame = np.vstack((left, right))
+
+        self.frame = cv2.resize(self.frame, (cfg.STREAM_PIXEL_WIDTH, cfg.STREAM_PIXEL_HEIGHT))
+        cv2.putText(self.frame,f"time:{time.time()}",(30,30),cv2.FONT_HERSHEY_PLAIN,1,(0,255,0),1)
+        #self.get_logger().info(f"time {time.time()}")
+
+    def push_frame(self, appsrc):
+        self.get_frame()
+        # Push Frame to Gstreamer Pipline 
+        # Color Conversion to RGB for Pipeline
+        frame = cv2.cvtColor(self.frame, cv2.COLOR_BGR2RGB)
+        frame = np.ascontiguousarray(frame)  # sicherstellen, dass contiguous
+
+        # Numpy → Gst.Buffer
+        data = frame.tobytes()
+        buf = Gst.Buffer.new_allocate(None, len(data), None)
+        buf.fill(0, data)
+        
+        # Timestamp for GStreamer Pipline
+        buf.duration = Gst.util_uint64_scale_int(1, Gst.SECOND, cfg.STREAM_FPS)
+        timestamp = self.frame_count * buf.duration
+        buf.pts = buf.dts = timestamp
+        buf.offset = timestamp
+        self.frame_count += 1
+
+        #Push Frames to GStreamer Pipline
+        self.get_logger().debug(f"push frame num frame {self.frame_count}")
+        appsrc.emit('push-buffer', buf)
+        return True  # für GLib.timeout_add -> wieder aufrufen
 
 def main(args=None):
-    rclpy.init()
-    print("init node")
-    node = MyNode()
-    print("node init")
+    rclpy.init(args=args)
+    node = RTSPPublisher()
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
         pass
-
     node.destroy_node()
     rclpy.shutdown()
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
