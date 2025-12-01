@@ -31,6 +31,11 @@ class RTSPPublisher(Node):
         # Import CV Bridge (Connection between ROS Messages and OpenCV) 
         self.bridge = CvBridge()
 
+        #Declare Parameter
+        self.declare_parameter("stream_mount", "IMAV")
+        self.declare_parameter("stream_port", 8555)
+        
+        self.start_timer = self.create_timer(0.2,self.after_init)
         # Subscriber of camera Streams
         self.create_subscription(Image, f'{cfg.ROS_CAMERA_TOPICS_FRNT}rgb', self.image_frnt_rgb_callback, cfg.ROS_QUEUE_SIZE)
         self.create_subscription(Image, f'{cfg.ROS_CAMERA_TOPICS_FRNT}depth', self.image_frnt_depth_callback, cfg.ROS_QUEUE_SIZE)
@@ -41,6 +46,11 @@ class RTSPPublisher(Node):
         self.gst_thread = threading.Thread(target=self.gst_loop)
         self.gst_thread.daemon = True
         self.gst_thread.start()
+
+    def after_init(self):
+        #Get Parameter
+        self.stream_mount = self.get_parameter("stream_mount").value
+        self.stream_port = self.get_parameter("stream_port").value
 
     def image_frnt_rgb_callback(self, msg):
         # Image front Camera Callback Message
@@ -172,8 +182,8 @@ class RTSPPublisher(Node):
         # RGB Cameras available
         if status_image == [1,0,1,0]:
             self.get_logger().debug("Both RGB Cameras are available")
-            left = self.pad_image_to_size(latest_frnt_frame.copy(), "left")
-            right = self.pad_image_to_size(latest_bttn_frame.copy(), "right")
+            left = self.pad_image_to_size(latest_frnt_rgb_frame.copy(), "left")
+            right = self.pad_image_to_size(latest_bttn_rgb_frame.copy(), "right")
             self.frame = np.vstack((left, right))
         
         # Front RGB Camera 

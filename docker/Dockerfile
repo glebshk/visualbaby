@@ -1,4 +1,3 @@
-
 # Basis-Image
 FROM ubuntu:22.04
 
@@ -69,6 +68,8 @@ RUN apt-get update && apt-get install -y \
         && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt /app/requirements.txt
+
+
 WORKDIR /app
 
 
@@ -115,7 +116,7 @@ RUN make install
 ### Grapcam install
 WORKDIR /workspaces/IMAV-videostream/
 RUN git config --global --add safe.directory /workspaces/IMAV-videostream/build/camera_node/_deps/grabthecam-src
-
+#RUN chmod +x start.sh
 
 # ------------------------------------------------------------
 # 4. ROS Umgebung automatisch laden
@@ -123,4 +124,7 @@ RUN git config --global --add safe.directory /workspaces/IMAV-videostream/build/
 SHELL ["/bin/bash", "-c"]
 RUN echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc
 
+WORKDIR /workspaces/IMAV-videostream/
+
+#CMD ["/workspaces/IMAV-videostream/start.sh"]
 CMD ["/bin/bash"]
