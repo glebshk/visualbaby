@@ -16,6 +16,7 @@ import threading
 import numpy as np
 import time
 import camera_stream.config as cfg
+import datetime
 
 # Define latest Frames
 latest_frnt_rgb_frame = None
@@ -41,6 +42,11 @@ class RTSPPublisher(Node):
         self.create_subscription(Image, f'{cfg.ROS_CAMERA_TOPICS_FRNT}depth', self.image_frnt_depth_callback, cfg.ROS_QUEUE_SIZE)
         self.create_subscription(Image, f'{cfg.ROS_CAMERA_TOPICS_BTTN}rgb', self.image_bttn_rgb_callback, cfg.ROS_QUEUE_SIZE)
         self.create_subscription(Image, f"{cfg.ROS_CAMERA_TOPICS_BTTN}depth",self.image_bttn_depth_callback, cfg.ROS_QUEUE_SIZE)
+        
+        self.atime = 0
+        self.btime = 0
+        self.num_frames = 0
+        self.fps = 0
 
         # GStreamer Thread
         self.gst_thread = threading.Thread(target=self.gst_loop)
@@ -59,6 +65,7 @@ class RTSPPublisher(Node):
         
         # ROS Message to CV frame
         cv_img = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+        cv2.putText(cv_img, f'topic:"camera/front/rgb"',(30,30),cfg.FONT_INTERFACE,cfg.THICKNESS_TOPICS_FONT, cfg.COLOR_INTERFACE_TOPICS, cfg.THICKNESS_TOPICS_FONT)
         latest_frnt_rgb_frame = cv_img
     
     def image_frnt_depth_callback(self, msg):
@@ -67,6 +74,7 @@ class RTSPPublisher(Node):
         self.get_logger().debug("get front depth image")
         # ROS Message to CV frame
         cv_img = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+        cv2.putText(cv_img, 'topic:"camera/front/depth"',(30,30),cfg.FONT_INTERFACE, cfg.THICKNESS_TOPICS_FONT, cfg.COLOR_INTERFACE_TOPICS, cfg.THICKNESS_TOPICS_FONT)
         latest_frnt_depth_frame = cv_img
 
     def image_bttn_rgb_callback(self,msg):
@@ -76,6 +84,7 @@ class RTSPPublisher(Node):
         
         #ROS Message to CV frame
         cv_img = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+        cv2.putText(cv_img, 'topic:"camera/bottom/rgb"',(30,30), cfg.FONT_INTERFACE, cfg.THICKNESS_TOPICS_FONT, cfg.COLOR_INTERFACE_TOPICS, cfg.THICKNESS_TOPICS_FONT)
         latest_bttn_rgb_frame = cv_img
 
     def image_bttn_depth_callback(self,msg):
@@ -85,6 +94,7 @@ class RTSPPublisher(Node):
         
         #ROS Message to CV frame
         cv_img = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+        cv2.putText(cv_img, 'topic:"camera/bottom/depth"', (30,30), cfg.FONT_INTERFACE, cfg.THICKNESS_TOPICS_FONT, cfg.COLOR_INTERFACE_TOPICS, cfg.THICKNESS_TOPICS_FONT)
         latest_bttn_depth_frame = cv_img
 
     def gst_loop(self):
@@ -177,7 +187,7 @@ class RTSPPublisher(Node):
         # No image available
         if status_image == [0,0,0,0]:
             self.get_logger().info("No camera is available")
-            return
+            return False
 
         # RGB Cameras available
         if status_image == [1,0,1,0]:
@@ -234,13 +244,24 @@ class RTSPPublisher(Node):
             left = self.pad_image_to_size(frame_left, "left")
             right = self.pad_image_to_size(frame_right, "right")
             self.frame = np.vstack((left, right))
+        
+        self.num_frames += 1
+
+        if self.num_frames % 5 == 0:
+            self.atime = time.time()
+            self.fps = round(5/(self.atime - self.btime), 2)
+            self.btime = self.atime
+            self.num_frames = 0
 
         self.frame = cv2.resize(self.frame, (cfg.STREAM_PIXEL_WIDTH, cfg.STREAM_PIXEL_HEIGHT))
-        cv2.putText(self.frame,f"time:{time.time()}",(30,30),cv2.FONT_HERSHEY_PLAIN,1,(0,255,0),1)
-        #self.get_logger().info(f"time {time.time()}")
+        cv2.putText(self.frame,f"time:{datetime.datetime.now()}",(30,30),cfg.FONT_INTERFACE,cfg.THICKNESS_FONT,cfg.COLOR_INTERFACE,cfg.THICKNESS_FONT)
+        cv2.putText(self.frame,f"fps:{self.fps}", (30,50),cfg.FONT_INTERFACE,cfg.THICKNESS_FONT,cfg.COLOR_INTERFACE,cfg.THICKNESS_FONT)
+        return True
 
     def push_frame(self, appsrc):
-        self.get_frame()
+        ret = self.get_frame()
+        if not ret:
+            return
         # Push Frame to Gstreamer Pipline 
         # Color Conversion to RGB for Pipeline
         frame = cv2.cvtColor(self.frame, cv2.COLOR_BGR2RGB)

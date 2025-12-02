@@ -18,9 +18,9 @@ class CameraNode(Node):
         self.declare_parameter("message_text", "Default message")
         self.declare_parameter("camera_topic", "camera/front/rgb")
         self.declare_parameter("camera_type", "USBCam")
-        self.declare_parameter("camera_ID", 0)
-        self.declare_parameter("camera_Serial", "")
-        
+        self.declare_parameter("camera_id", 0)
+        self.declare_parameter("camera_serial", "0")
+        self.declare_parameter("camera_rotation",0)        
         
         self.start_timer = self.create_timer(0.1, self.init_after_init)  # Delay init to allow parameter setting
     
@@ -42,9 +42,17 @@ class CameraNode(Node):
 
         # Get Camera Parameters
         self.camera_type = self.get_parameter("camera_type").value
-        self.camera_ID = self.get_parameter("camera_ID").value
-        self.camera_Serial = self.get_parameter("camera_Serial").value
+        self.camera_ID = self.get_parameter("camera_id").value
+        self.camera_serial = self.get_parameter("camera_serial").value
+        self.camera_rotation = self.get_parameter("camera_rotation").value
         
+        # Test camera_rotation value
+        if not self.camera_rotation == 180 and not self.camera_rotation == 90 and not self.camera_rotation == 0:
+           
+            self.get_logger().info(f"Camera Rotation angle of {self.camera_rotation}° is not possible")
+            self.get_logger().info("Camera angle is set of 0°")
+            self.camera_rotation = 0
+
         # Initialize Camera
         if self.camera_type == "Realsense":
             camera_topic_depth = self.get_parameter("camera_topic").value.replace("rgb","") + "depth"
@@ -64,22 +72,33 @@ class CameraNode(Node):
         # 1. Pipeline und Konfiguration erstellen
         self.pipeline = rs.pipeline()
         config = rs.config()
+        # Enable Camera by Serial Number
+        config.enable_device(self.camera_serial)
         config.enable_stream(rs.stream.color, cfg.CAM_PIXEL_WIDTH, cfg.CAM_PIXEL_HEIGHT, rs.format.bgr8, cfg.CAM_FPS)
         config.enable_stream(rs.stream.depth, cfg.CAM_PIXEL_WIDTH, cfg.CAM_PIXEL_HEIGHT, rs.format.z16, cfg.CAM_FPS)
+        try:
+            # 2. Pipeline starten
+            self.pipeline.start(config)
 
-        # 2. Pipeline starten
-        self.pipeline.start(config)
+            # Colormap
+            self.colorizer = rs.colorizer()
+        
+        except:
+            self.get_logger().error("Init Depth camera failed")
 
-        # Colormap
-        self.colorizer = rs.colorizer()
 
     def init_USBCam(self):
-        self.cap_USB = cv2.VideoCapture(self.camera_ID)
-        self.cap_USB.set(cv2.CAP_PROP_FRAME_WIDTH, cfg.CAM_PIXEL_WIDTH)
-        self.cap_USB.set(cv2.CAP_PROP_FRAME_HEIGHT, cfg.CAM_PIXEL_HEIGHT)
-        self.cap_USB.set(cv2.CAP_PROP_AUTO_EXPOSURE, cfg.CAM_AUTO_EXPOSURE)  # manuell
-        self.cap_USB.set(cv2.CAP_PROP_EXPOSURE, cfg.CAM_EXPOSURE)          # Belichtungszeit
-        self.cap_USB.set(cv2.CAP_PROP_FPS, cfg.CAM_FPS)
+        try:
+            self.cap_USB = cv2.VideoCapture(self.camera_ID)
+            self.cap_USB.set(cv2.CAP_PROP_FRAME_WIDTH, cfg.CAM_PIXEL_WIDTH)
+            self.cap_USB.set(cv2.CAP_PROP_FRAME_HEIGHT, cfg.CAM_PIXEL_HEIGHT)
+            self.cap_USB.set(cv2.CAP_PROP_AUTO_EXPOSURE, cfg.CAM_AUTO_EXPOSURE)  # manuell
+            self.cap_USB.set(cv2.CAP_PROP_EXPOSURE, cfg.CAM_EXPOSURE)          # Belichtungszeit
+            self.cap_USB.set(cv2.CAP_PROP_FPS, cfg.CAM_FPS)
+        
+        except:
+            self.get_logger().error(" Init Camera failure {e}")
+
 
     def timer_callback(self):
         if self.camera_type == "Realsense":
@@ -92,6 +111,15 @@ class CameraNode(Node):
             # Convert images to numpy arrays
             color_image = np.asanyarray(color_frame.get_data())
             depth_image = np.asanyarray(depth_frame_color.get_data())
+            
+            # Rotation of frame
+            if self.camera_rotation == 180:
+                color_image = cv2.rotate(color_image, cv2.ROTATE_180)
+                depth_image = cv2.rotate(depth_image, cv2.ROTATE_180)
+            
+            elif self.camera_rotation == 90:
+                color_image = cv2.rotate(color_image, cv2.ROTATE_90)
+                depth_image = cv2.rotate(depth_image, cv2.ROTATE_90)
 
             # Convert to ROS Image message
             img_msg = self.bridge.cv2_to_imgmsg(color_image, encoding="bgr8")

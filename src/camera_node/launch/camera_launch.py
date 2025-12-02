@@ -6,29 +6,28 @@ def generate_launch_description():
         Node(
             package='camera_node',
             executable='camera_node',
-            name='camera_1',
+            name='camera_usb',
+            output='screen',
+            parameters=[{
+                'camera_topic': 'camera/bottom/rgb',
+                'camera_type': 'USBCam',
+                'camera_id': 0,
+                'message_text': 'Bottom Camera Stream'
+            }]
+        ),
+        Node(
+            package='camera_node',
+            executable='camera_node',
+            name='camera_real',
             output='screen',
             parameters=[{
                 'camera_topic': 'camera/front/rgb',
-                'camera_type': 'USBCam',
-                'camera_id': 0,
-                'message_text': 'Front Camera Stream',
-                'camera_serial': ''
+                'camera_type': 'Realsense',
+                'message_text': 'Front Camera',
+                'camera_serial': "918512073048",
+                'camera_rotation': 180
             }]
         ),
-        #Node(
-         #   package='camera_node',
-          #  executable='camera_node',
-           # name='camera_real',
-           # output='screen',
-           # parameters=[{
-           #     'camera_topic': 'camera/bottom/rgb',
-           #     'camera_type': 'Realsense',
-           #     'camera_id': 0,
-           #     'message_text': 'Bottom Cam',
-           #     'camera_serial': 918512071813
-           # }]
-        #),
         
         Node(
             package='camera_stream',

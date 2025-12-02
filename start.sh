@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-cd /workspaces/IMAV-videostream/src
+cd ./src
 
 colcon build --symlink-install
 
