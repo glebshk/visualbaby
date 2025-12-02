@@ -29,7 +29,8 @@ jobs:
       - name: Build & push with cache
         uses: docker/build-push-action@v5
         with:
-          context: ./docker/.
+          context: ./
+          file: ./docker/Dockerfile 
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ghcr.io/aachen-drone-development-initiative/imav-videostream/imav_video:latest

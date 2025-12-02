@@ -21,7 +21,7 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Kopiere lokalen Repo-Inhalt ins Docker-Image
-COPY ./ /app/
+COPY /docker/ /app/
 
 # Locale setzen (wichtig für ROS 2 Tools)
 RUN locale-gen en_US en_US.UTF-8 && \
@@ -67,8 +67,7 @@ RUN apt-get update && apt-get install -y \
         gstreamer1.0-rtsp \
         && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt /app/requirements.txt
-
+COPY /docker/requirements.txt /app/requirements.txt
 
 WORKDIR /app
 
@@ -114,9 +113,9 @@ RUN make install
 
 
 ### Grapcam install
-WORKDIR /workspaces/IMAV-videostream/
-COPY ../ /workspaces/IMAV-videostream/
-RUN git config --global --add safe.directory /workspaces/IMAV-videostream/build/camera_node/_deps/grabthecam-src
+WORKDIR /workspaces/imav-videostream/
+COPY ./ /workspaces/imav-videostream/
+RUN git config --global --add safe.directory /workspaces/imav-videostream/build/camera_node/_deps/grabthecam-src
 #RUN chmod +x start.sh
 
 # ------------------------------------------------------------
