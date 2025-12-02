@@ -115,6 +115,7 @@ RUN make install
 
 ### Grapcam install
 WORKDIR /workspaces/IMAV-videostream/
+COPY ../ /workspaces/IMAV-videostream/
 RUN git config --global --add safe.directory /workspaces/IMAV-videostream/build/camera_node/_deps/grabthecam-src
 #RUN chmod +x start.sh
 
