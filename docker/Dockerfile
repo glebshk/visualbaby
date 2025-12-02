@@ -104,7 +104,7 @@ RUN cmake .. \
     -DPYTHON_EXECUTABLE=$(which python3)
 
 # Builden
-RUN make -j4
+RUN make
 RUN make install
 #RUN udevadm control --reload-rules
 #RUN udevadm trigger
@@ -128,3 +128,4 @@ WORKDIR /workspaces/IMAV-videostream/
 
 #CMD ["/workspaces/IMAV-videostream/start.sh"]
 CMD ["/bin/bash"]
+
