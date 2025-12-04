@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import cv2
 ### Values of Streaming Node
-debug = False
 
 #Stream Parameters
 STREAM_PIXEL_WIDTH = 1280           #Pixel
@@ -34,5 +33,5 @@ THICKNESS_TOPICS_FONT = 2
 #ROS Parameters
 ROS_QUEUE_SIZE = 10                  #ROS Queue Size
 
-ROS_CAMERA_TOPICS_BTTN = "camera/bottom/"
-ROS_CAMERA_TOPICS_FRNT = "camera/front/"
+ROS_CAMERA_TOPICS_BTTN = "stream/bottom/"
+ROS_CAMERA_TOPICS_FRNT = "stream/front/"

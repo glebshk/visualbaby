@@ -30,6 +30,30 @@ def generate_launch_description():
         ),
         
         Node(
+            package='aruco_detect',
+            executable='detect',
+            name='aruco_detection_bottom',
+            output='screen',
+            parameters=[{
+                'listen_on_topic':'camera/bottom/rgb',
+                'camera_type': 'USB_CAM'
+            }
+            ]
+                    
+        ),
+        Node(
+            package='aruco_detect',
+            executable='detect',
+            name='aruco_detection_front',
+            output='screen',
+            parameters=[{
+                'listen_on_topic':'camera/front/rgb',
+                'camera_type': 'USB_CAM'
+            }
+            ]
+                    
+        ),
+        Node(
             package='camera_stream',
             executable='stream',
             name='rtsp_stream',

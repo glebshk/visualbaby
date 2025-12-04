@@ -38,10 +38,11 @@ class RTSPPublisher(Node):
         
         self.start_timer = self.create_timer(0.2,self.after_init)
         # Subscriber of camera Streams
+        #TODO implement depth camera interface node / translation
         self.create_subscription(Image, f'{cfg.ROS_CAMERA_TOPICS_FRNT}rgb', self.image_frnt_rgb_callback, cfg.ROS_QUEUE_SIZE)
-        self.create_subscription(Image, f'{cfg.ROS_CAMERA_TOPICS_FRNT}depth', self.image_frnt_depth_callback, cfg.ROS_QUEUE_SIZE)
+        self.create_subscription(Image, f'camera/front/depth', self.image_frnt_depth_callback, cfg.ROS_QUEUE_SIZE)
         self.create_subscription(Image, f'{cfg.ROS_CAMERA_TOPICS_BTTN}rgb', self.image_bttn_rgb_callback, cfg.ROS_QUEUE_SIZE)
-        self.create_subscription(Image, f"{cfg.ROS_CAMERA_TOPICS_BTTN}depth",self.image_bttn_depth_callback, cfg.ROS_QUEUE_SIZE)
+        self.create_subscription(Image, f"camera/bottom/depth",self.image_bttn_depth_callback, cfg.ROS_QUEUE_SIZE)
         
         self.atime = 0
         self.btime = 0

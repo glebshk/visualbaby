@@ -134,7 +134,7 @@ class CameraNode(Node):
 
             # Convert to ROS Image message
             img_msg = self.bridge.cv2_to_imgmsg(frame, encoding="bgr8")
-            #self.get_logger().debug("push frame capture")
+            #self.get_logger().info("push frame capture")
             self.camera.publish(img_msg)
 
 def main(args=None):
