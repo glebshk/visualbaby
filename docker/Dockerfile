@@ -36,7 +36,9 @@ WORKDIR /app
 
 COPY /docker/apt-requirements.txt /app/apt-requirements.txt
 # Install basic dependencies
-RUN apt update -y && apt install -y --no-install-recommends $(cat apt-requirements.txt) && rm -rf /var/lib/apt/lists/*
+RUN apt update -y && \
+    xargs -a /app/apt-requirements.txt apt install -y --no-install-recommends && \
+    rm -rf /var/lib/apt/lists/*
  
 # ------------------------------------------------------------
 # Install Python dependencies

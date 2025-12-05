@@ -1,7 +1,8 @@
 ros-humble-desktop 
 python3-pip 
 rapidjson-dev 
-libv4l-dev v4l-utils 
+libv4l-dev 
+v4l-utils 
 python3-argcomplete 
 python3-colcon-common-extensions
 ros-humble-cv-bridge 
