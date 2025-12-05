@@ -80,7 +80,7 @@ RUN make install
 # 4. Arbeitsverzeichnis anlegen und Quellcode kopieren
 # ------------------------------------------------------------
 WORKDIR /workspaces/imav-videostream/
-COPY /start.sh /workspaces/imav-videostream/start.sh
+COPY /start.sh /workspaces/imav-videostream/start_ROS.sh
 COPY /src/ /workspaces/imav-videostream/src/
 RUN git config --global --add safe.directory /workspaces/imav-videostream/build/camera_node/_deps/grabthecam-src
 #RUN chmod +x start.sh
