@@ -7,15 +7,12 @@ ENV DEBIAN_FRONTEND=noninteractive
 # ------------------------------------------------------------
 # 1. Grundsystem vorbereiten
 # ------------------------------------------------------------
-RUN apt-get update && apt-get install -y \
-        curl \
-        gnupg2 \
-        lsb-release \
-        git \
-        locales \
-        cmake \
-        build-essential \
-        && rm -rf /var/lib/apt/lists/*
+RUN apt-get update 
+WORKDIR /app
+
+COPY /docker/apt-requirements.txt /app/apt-requirements.txt
+# Install basic dependencies
+RUN apt install -y --no-install-recommends $(cat apt-requirements.txt) &&rm -rf /var/lib/apt/lists/*
  
 # Arbeitsverzeichnis
 WORKDIR /app
@@ -39,42 +36,12 @@ RUN echo "deb [arch=$(dpkg --print-architecture) \
     signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] \
     http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" \
     > /etc/apt/sources.list.d/ros2.list
-
-
-
 # ------------------------------------------------------------
-# 3. ROS 2 Humble installieren
-# ------------------------------------------------------------
-RUN apt-get update && apt-get install -y \
-        ros-humble-desktop \
-        python3-pip \
-        rapidjson-dev \
-        libv4l-dev v4l-utils \
-        python3-argcomplete \
-        python3-colcon-common-extensions\
-        ros-humble-cv-bridge \
-        python3-gi \
-        gir1.2-gstreamer-1.0 \
-        gir1.2-gst-rtsp-server-1.0 \
-        libgstreamer1.0-0 \
-        libgstreamer-plugins-base1.0-0 \
-        gstreamer1.0-plugins-base \
-        gstreamer1.0-plugins-good \
-        gstreamer1.0-plugins-bad \
-        gstreamer1.0-plugins-ugly \
-        gstreamer1.0-libav \
-        libgstrtspserver-1.0-0 \
-        gstreamer1.0-rtsp \
-        && rm -rf /var/lib/apt/lists/*
-
-COPY /docker/requirements.txt /app/requirements.txt
-
-WORKDIR /app
-
-
-
 # Install Python dependencies
-RUN pip install -r requirements.txt
+# ------------------------------------------------------------
+COPY /docker/pip-requirements.txt /app/pip-requirements.txt
+
+RUN pip install -r pip-requirements.txt
 
 # Install Realsense SDK
 # Abhängigkeiten installieren
@@ -91,7 +58,6 @@ WORKDIR /app/realsense/librealsense
 
 # Udev-Regeln anlegen
 RUN cp config/99-realsense-libusb.rules /etc/udev/rules.d/
-
 
 # Build-Konfiguration
 WORKDIR /app/realsense/librealsense/build
@@ -110,9 +76,9 @@ RUN make install
 # Install Python Bindings
 #RUN cp ./Release/pyrealsense2.cpython-310-aarch64-linux-gnu.so /usr/lib/python3/dist-packages/pyrealsense2.so
 
-
-
-### Grapcam install
+# ------------------------------------------------------------
+# 4. Arbeitsverzeichnis anlegen und Quellcode kopieren
+# ------------------------------------------------------------
 WORKDIR /workspaces/imav-videostream/
 COPY /start.sh /workspaces/imav-videostream/start.sh
 COPY /src/ /workspaces/imav-videostream/src/
@@ -125,8 +91,8 @@ RUN git config --global --add safe.directory /workspaces/imav-videostream/build/
 SHELL ["/bin/bash", "-c"]
 RUN echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc
 
-WORKDIR /workspaces/IMAV-videostream/
+WORKDIR /workspaces/imav-videostream/
 
-#CMD ["/workspaces/IMAV-videostream/start.sh"]
+#CMD ["/workspaces/imav-videostream/start.sh"]
 CMD ["/bin/bash"]
 

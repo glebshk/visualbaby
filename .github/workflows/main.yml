@@ -1,8 +1,8 @@
-name: Build and Push Docker Image
+name: Build and Push main Docker Image
 
 on:
   push:
-    branches: [ "main","Camera_test" ]
+    branches: [ "main" ]
   workflow_dispatch:
 
 jobs:
