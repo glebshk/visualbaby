@@ -12,7 +12,7 @@ WORKDIR /app
 
 COPY /docker/apt-requirements.txt /app/apt-requirements.txt
 # Install basic dependencies
-RUN apt install -y --no-install-recommends $(cat apt-requirements.txt) &&rm -rf /var/lib/apt/lists/*
+RUN apt update -y && apt install -y --no-install-recommends $(cat apt-requirements.txt) && rm -rf /var/lib/apt/lists/*
  
 # Arbeitsverzeichnis
 WORKDIR /app

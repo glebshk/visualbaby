@@ -24,4 +24,5 @@ lsb-release
 git 
 locales 
 cmake 
-build-essential 
+build-essential
+vim
