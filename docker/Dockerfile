@@ -7,13 +7,8 @@ ENV DEBIAN_FRONTEND=noninteractive
 # ------------------------------------------------------------
 # 1. Grundsystem vorbereiten
 # ------------------------------------------------------------
-RUN apt-get update 
-WORKDIR /app
+RUN apt-get update && apt upgrade -y && apt install -y curl gnupg2 lsb-release locales software-properties-common git python3-pip
 
-COPY /docker/apt-requirements.txt /app/apt-requirements.txt
-# Install basic dependencies
-RUN apt update -y && apt install -y --no-install-recommends $(cat apt-requirements.txt) && rm -rf /var/lib/apt/lists/*
- 
 # Arbeitsverzeichnis
 WORKDIR /app
 
@@ -36,6 +31,13 @@ RUN echo "deb [arch=$(dpkg --print-architecture) \
     signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] \
     http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" \
     > /etc/apt/sources.list.d/ros2.list
+
+WORKDIR /app
+
+COPY /docker/apt-requirements.txt /app/apt-requirements.txt
+# Install basic dependencies
+RUN apt update -y && apt install -y --no-install-recommends $(cat apt-requirements.txt) && rm -rf /var/lib/apt/lists/*
+ 
 # ------------------------------------------------------------
 # Install Python dependencies
 # ------------------------------------------------------------
