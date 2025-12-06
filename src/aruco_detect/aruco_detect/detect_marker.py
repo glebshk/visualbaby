@@ -82,6 +82,7 @@ class DetectorNode(Node):
                 
                 # Check if Marker is in Marker list
                 if marker_id in cfg.MARKER_SIZE_LIST:
+                    self.get_logger().info(f"Marker ID {marker_id} detected")
                     # Calculate Position and Rotation matrix of Aruco Marker from Camera in mm
                     try:
                         marker_rvecs, marker_tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(self.aruco_corners[i],cfg.MARKER_SIZE_LIST[str(marker_id)],
