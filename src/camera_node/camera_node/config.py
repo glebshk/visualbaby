@@ -1,5 +1,6 @@
 # Config file for camera_node
-debug = False
+USB_HUB_AVAILABILITY = False            # Set to True if a USB hub is used
+
 # Camera Parameters
 CAM_PIXEL_WIDTH = 640               #Pixel
 CAM_PIXEL_HEIGHT = 480              #Pixel

@@ -276,6 +276,7 @@ class RTSPPublisher(Node):
         self.frame = cv2.resize(self.frame, (cfg.STREAM_PIXEL_WIDTH, cfg.STREAM_PIXEL_HEIGHT))
 
         self.add_system_info()
+        return True
     
     
     def get_system_info(self):
@@ -292,7 +293,6 @@ class RTSPPublisher(Node):
         cv2.putText(self.frame,f"CPU:{self.cpu_usage}%",(30,70),cfg.FONT_INTERFACE,cfg.THICKNESS_FONT,cfg.COLOR_INTERFACE,cfg.THICKNESS_FONT)
         cv2.putText(self.frame,f"RAM:{self.memory_usage}%",(30,90),cfg.FONT_INTERFACE,cfg.THICKNESS_FONT,cfg.COLOR_INTERFACE,cfg.THICKNESS_FONT)
         cv2.putText(self.frame,f"TEMP:{round(self.cpu_temp,1)}C",(30,110),cfg.FONT_INTERFACE,cfg.THICKNESS_FONT,cfg.COLOR_INTERFACE,cfg.THICKNESS_FONT)  
-        return True
 
     def push_frame(self, appsrc):
         ret = self.get_frame()

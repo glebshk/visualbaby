@@ -65,8 +65,9 @@ class CameraNode(Node):
             self.camera_aceleration = self.create_publisher(Float32MultiArray,f"{self.get_parameter('camera_topic').value.replace('rgb','acceleration')}", cfg.ROS_MESSSAGE_QUEUE_SIZE)
             self.camera_gyro = self.create_publisher(Float32MultiArray,f"{self.get_parameter('camera_topic').value.replace('rgb','gyro')}", cfg.ROS_MESSSAGE_QUEUE_SIZE)
             
-            # IMU Timer
-            self.imu_timer = self.create_timer(1.0 / cfg.IMU_FPS, self.imu_timer_callback)
+            if cfg.USB_HUB_AVAILABILITY:
+                # IMU Timer callback
+                self.imu_timer = self.create_timer(1.0 / cfg.IMU_FPS, self.imu_timer_callback)
 
             # Initialize Realsense Camera
             self.init_reasense()
@@ -88,9 +89,12 @@ class CameraNode(Node):
         config.enable_stream(rs.stream.color, cfg.CAM_PIXEL_WIDTH, cfg.CAM_PIXEL_HEIGHT, rs.format.bgr8, cfg.CAM_FPS)
         config.enable_stream(rs.stream.depth, cfg.CAM_PIXEL_WIDTH, cfg.CAM_PIXEL_HEIGHT, rs.format.z16, cfg.CAM_FPS)
 
-        # Enable IMU streams
-        config.enable_stream(rs.stream.accel, rs.format.motion_xyz32f, cfg.ACCEL_RATE_HZ)
-        config.enable_stream(rs.stream.gyro, rs.format.motion_xyz32f, cfg.GYRO_FPS_HZ)
+        # USB Power limitation -> not possible without powered USB Hub
+        if cfg.USB_HUB_AVAILABILITY:
+            # Enable IMU streams
+            config.enable_stream(rs.stream.accel, rs.format.motion_xyz32f, cfg.ACCEL_RATE_HZ)
+            config.enable_stream(rs.stream.gyro, rs.format.motion_xyz32f, cfg.GYRO_FPS_HZ)
+        
         try:
             # 2. Pipeline starten
             self.pipeline.start(config)
