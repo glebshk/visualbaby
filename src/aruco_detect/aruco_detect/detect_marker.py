@@ -5,7 +5,7 @@ from rclpy_message_converter import message_converter
 from std_msgs.msg import String
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
-
+import json
 import cv2
 import aruco_detect.config as cfg
 
@@ -80,8 +80,8 @@ class DetectorNode(Node):
             for i,marker_id in enumerate(self.aruco_ids.flatten()):
                 
                 # Check if Marker is in Marker list
-                if marker_id in cfg.MARKER_SIZE_LIST:
-                    self.get_logger().info(f"Marker ID {marker_id} detected")
+                if str(marker_id) in cfg.MARKER_SIZE_LIST:
+                    self.get_logger().debug(f"Marker ID {marker_id} detected")
                     # Calculate Position and Rotation matrix of Aruco Marker from Camera in mm
                     try:
                         marker_rvecs, marker_tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(self.aruco_corners[i],cfg.MARKER_SIZE_LIST[str(marker_id)],
@@ -92,18 +92,19 @@ class DetectorNode(Node):
                         cv2.putText(self.frame, f"ID: {marker_id}", (int(self.aruco_corners[i][0][0][0]), int(self.aruco_corners[i][0][0][1]-15)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 2)
                         cv2.putText(self.frame, f"Pos: {marker_tvecs[0][0]}", (int(self.aruco_corners[i][0][0][0]), int(self.aruco_corners[i][0][0][1]-35)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 2)
                         
-                        # Save marker info in dict
+                        # Save Marker info in Dict
                         self.marker_list[f"{marker_id}"] = [marker_tvecs,marker_rvecs]
                     except:
                         self.get_logger().error("Position estimation not possible")
             
             self.get_logger().debug("send marker msg")
             # Publish Marker dict to ROS
-            msg = message_converter.convert_dictionary_to_ros_message('std_msgs/msg/String', self.marker_list)
+            json_str = json.dumps(self.marker_list)
+            msg = message_converter.convert_dictionary_to_ros_message(
+                        'std_msgs/msg/String',
+                        {"data": json_str}
+                    )
             self.pub_marker.publish(msg)
-
-            # Draw Marker in CV Frame 
-            cv2.aruco.drawDetectedMarkers(self.frame,self.aruco_corners,self.aruco_ids)
         
         # Convert Open CV Frame to ROS Message
         img_msg = self.bridge.cv2_to_imgmsg(self.frame, encoding="bgr8")
