@@ -84,8 +84,11 @@ class RTSPPublisher(Node):
         # ROS Message to CV frame
         cv_img = self.bridge.imgmsg_to_cv2(msg, desired_encoding='16UC1')
 
-        #Colorized Depth Image
-        cv_img = self.colorizer.colorize(cv_img)
+        # Colorized Depth Image
+        normalized = cv2.normalize(cv_img, None, 0, 255, cv2.NORM_MINMAX)
+        cv_img = cv2.applyColorMap(normalized.astype(np.uint8), cv2.COLORMAP_JET)
+        
+        # Add text
         cv2.putText(cv_img, 'topic:"camera/front/depth"',(30,30),cfg.FONT_INTERFACE, cfg.THICKNESS_TOPICS_FONT, cfg.COLOR_INTERFACE_TOPICS, cfg.THICKNESS_TOPICS_FONT)
         latest_frnt_depth_frame = cv_img
 
@@ -107,8 +110,11 @@ class RTSPPublisher(Node):
         #ROS Message to CV frame
         cv_img = self.bridge.imgmsg_to_cv2(msg, desired_encoding='16UC1')
         
-        #Colorized Depth Image
-        cv_img = self.colorizer.colorize(cv_img)
+        # Colorized Depth Image
+        normalized = cv2.normalize(cv_img, None, 0, 255, cv2.NORM_MINMAX)
+        cv_img = cv2.applyColorMap(normalized.astype(np.uint8), cv2.COLORMAP_JET)
+        
+        # Add text
         cv2.putText(cv_img, 'topic:"camera/bottom/depth"', (30,30), cfg.FONT_INTERFACE, cfg.THICKNESS_TOPICS_FONT, cfg.COLOR_INTERFACE_TOPICS, cfg.THICKNESS_TOPICS_FONT)
         latest_bttn_depth_frame = cv_img
 
@@ -277,7 +283,7 @@ class RTSPPublisher(Node):
         self.cpu_usage = psutil.cpu_percent()
         self.memory = psutil.virtual_memory()
         self.memory_usage = self.memory.percent
-        self.cpu_temp = psutil.sensors_temperatures().get('coretemp', [])[0].current
+        self.cpu_temp = psutil.sensors_temperatures()["cpu_thermal"][0].current
     
     def add_system_info(self):
         # Add system info to frame
@@ -285,7 +291,7 @@ class RTSPPublisher(Node):
         cv2.putText(self.frame,f"FPS:{self.fps}", (30,50),cfg.FONT_INTERFACE,cfg.THICKNESS_FONT,cfg.COLOR_INTERFACE,cfg.THICKNESS_FONT)
         cv2.putText(self.frame,f"CPU:{self.cpu_usage}%",(30,70),cfg.FONT_INTERFACE,cfg.THICKNESS_FONT,cfg.COLOR_INTERFACE,cfg.THICKNESS_FONT)
         cv2.putText(self.frame,f"RAM:{self.memory_usage}%",(30,90),cfg.FONT_INTERFACE,cfg.THICKNESS_FONT,cfg.COLOR_INTERFACE,cfg.THICKNESS_FONT)
-        cv2.putText(self.frame,f"TEMP:{self.cpu_temp}C",(30,110),cfg.FONT_INTERFACE,cfg.THICKNESS_FONT,cfg.COLOR_INTERFACE,cfg.THICKNESS_FONT)  
+        cv2.putText(self.frame,f"TEMP:{round(self.cpu_temp,1)}C",(30,110),cfg.FONT_INTERFACE,cfg.THICKNESS_FONT,cfg.COLOR_INTERFACE,cfg.THICKNESS_FONT)  
         return True
 
     def push_frame(self, appsrc):

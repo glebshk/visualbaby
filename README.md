@@ -11,6 +11,11 @@ echo TOKEN_HERE | docker login ghcr.io -u GITHUB_USERNAME --password-stdin
 Als Token den Classic Access Token
 
 2. Herunterladen des docker Container
+Vor dem Herunterladen auf ipv4 setzen
+```
+sudo sysctl -p /etc/sysctl.d/99-disable-ipv6.conf
+```
+Dann docker herunterladen
 ```
 docker pull ghcr.io/aachen-drone-development-initiative/imav-videostream/imav_video:latest
 ```

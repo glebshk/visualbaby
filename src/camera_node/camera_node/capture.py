@@ -89,8 +89,8 @@ class CameraNode(Node):
         config.enable_stream(rs.stream.depth, cfg.CAM_PIXEL_WIDTH, cfg.CAM_PIXEL_HEIGHT, rs.format.z16, cfg.CAM_FPS)
 
         # Enable IMU streams
-        config.enable_stream(rs.stream.accel, rs.format.motion_xyz32f)
-        config.enable_stream(rs.stream.gyro, rs.format.motion_xyz32f)
+        config.enable_stream(rs.stream.accel, rs.format.motion_xyz32f, cfg.ACCEL_RATE_HZ)
+        config.enable_stream(rs.stream.gyro, rs.format.motion_xyz32f, cfg.GYRO_FPS_HZ)
         try:
             # 2. Pipeline starten
             self.pipeline.start(config)
