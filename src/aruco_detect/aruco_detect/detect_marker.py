@@ -19,12 +19,10 @@ class DetectorNode(Node):
         self.declare_parameter("message_text", "Default message")
         self.declare_parameter("listen_on_topic", "camera/bottom/rgb")
         self.declare_parameter("camera_type","USB_CAM")
+        self.declare_parameter("camera_serial","0")
 
         # Import CV Bridge for ROS to CV2 
         self.bridge = CvBridge()
-
-        #Define aruco detector
-        #self.aruco_dectector = cv2.aruco.ArucoDetector(cfg.MARKER_DICT,cfg.MARKER_PARAMETER)
         
         # Define timer for after init
         self.start_timer = self.create_timer(0.2, self.after_init)
@@ -37,6 +35,7 @@ class DetectorNode(Node):
         # Get Parameter
         self.camera_topic = self.get_parameter("listen_on_topic").value
         self.camera_type = self.get_parameter("camera_type").value
+        self.serial = self.get_parameter("camera_serial").value
 
         # Import Camera Parameter
         self.import_camera_parameter()
@@ -58,7 +57,7 @@ class DetectorNode(Node):
         self.get_logger().info("Import Camera Parameters")
         try:
             # Import from yamlfile camera matrix
-            cv_file = cv2.FileStorage(f"./calibration/calibration_{self.camera_type}.yaml", cv2.FILE_STORAGE_READ) 
+            cv_file = cv2.FileStorage(f"./src/camera_calibration/calibration_{self.camera_type}_{self.serial}.yaml", cv2.FILE_STORAGE_READ) 
             self.camera_matrix = cv_file.getNode('K').mat()
             self.distance_coefficients = cv_file.getNode('D').mat()
             cv_file.release()
@@ -87,6 +86,13 @@ class DetectorNode(Node):
                     try:
                         marker_rvecs, marker_tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(self.aruco_corners[i],cfg.MARKER_SIZE_LIST[str(marker_id)],
                                                                                         self.camera_matrix,self.distance_coefficients)
+                        
+                        # Draw Axis and Info on Frame
+                        cv2.aruco.drawAxis(self.frame, self.camera_matrix, self.distance_coefficients, marker_rvecs, marker_tvecs, 50)
+                        cv2.putText(self.frame, f"ID: {marker_id}", (int(self.aruco_corners[i][0][0][0]), int(self.aruco_corners[i][0][0][1]-15)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 2)
+                        cv2.putText(self.frame, f"Pos: {marker_tvecs[0][0]}", (int(self.aruco_corners[i][0][0][0]), int(self.aruco_corners[i][0][0][1]-35)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 2)
+                        
+                        # Save marker info in dict
                         self.marker_list[f"{marker_id}"] = [marker_tvecs,marker_rvecs]
                     except:
                         self.get_logger().error("Position estimation not possible")

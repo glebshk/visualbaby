@@ -18,7 +18,7 @@ while [[ "$#" -gt 0 ]]; do
             echo "Failed to start Docker container 'imav'. Please check if Docker is running and the image exists."
             echo "Attempting to pull the latest image..."
             docker pull ghcr.io/aachen-drone-development-initiative/imav-videostream/imav_video:latest
-             ;;
+            };;
         --test) { 
             echo "Start new container 'imav' with test image and video device access."
             docker run -it --name imav-test --device=/dev/video0:/dev/video0 --device=/dev/video1:/dev/video1 --device=/dev/bus/usb:/dev/bus/usb -p 8555:8555 ghcr.io/aachen-drone-development-initiative/imav-videostream/imav_video:test /bin/bash 

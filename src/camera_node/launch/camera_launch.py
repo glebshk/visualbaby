@@ -48,7 +48,8 @@ def generate_launch_description():
             output='screen',
             parameters=[{
                 'listen_on_topic':'camera/front/rgb',
-                'camera_type': 'USB_CAM'
+                'camera_type': 'Realsense',
+                'camera_serial': "918512073048"
             }
             ]
                     
