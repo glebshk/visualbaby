@@ -36,7 +36,8 @@ def generate_launch_description():
             output='screen',
             parameters=[{
                 'listen_on_topic':'camera/bottom/rgb',
-                'camera_type': 'USB_CAM'
+                'camera_type': 'USB',
+                'camera_serial': "640480"
             }
             ]
                     
