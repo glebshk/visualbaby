@@ -20,9 +20,10 @@ while [[ "$#" -gt 0 ]]; do
                 docker stop imav
                 docker rm imav
             }
-        {
-            echo "Run container with video devices."
-            docker run -it --name imav --device=/dev/video0:/dev/video0 --device=/dev/video1:/dev/video1 --device=/dev/bus/usb:/dev/bus/usb -p 8555:8555 ghcr.io/aachen-drone-development-initiative/imav-vid>
+            echo "run container"
+            {
+                    echo "Run container with video devices."
+                    docker run -it --name imav --device=/dev/video0:/dev/video0 --device=/dev/video1:/dev/video1 --device=/dev/bus/usb:/dev/bus/usb -p 8555:8555 ghcr.io/aachen-drone-development-initiative/>
             } || {
                 echo "Run container without video devices."
                 docker rm imav
@@ -46,6 +47,7 @@ while [[ "$#" -gt 0 ]]; do
                 docker rm imav-test
                 docker run -it --name imav-test --device=/dev/bus/usb:/dev/bus/usb -p 8555:8555 ghcr.io/aachen-drone-development-initiative/imav-videostream/imav_video:test /bin/bash
              } ;;
+
         -h|--help) 
             echo "--main : opens the latest main image container \n
             --test : opens the latest test image container \n
