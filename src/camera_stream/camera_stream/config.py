@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import cv2
 ### Values of Streaming Node
-debug = False
 
 #Stream Parameters
 STREAM_PIXEL_WIDTH = 1280           #Pixel
@@ -25,13 +24,14 @@ GSTREAMER_PIPLINE = (f'appsrc name=mysource is-live=true block=true format=time 
             f'h264parse config-interval=1 ! rtph264pay name=pay0 pt=96'
 )
 #Interface Parameters
-FONT_INTERFACE = cv2.FONT_HERSHEY_SIMPLEX #Font
-COLOR_INTERFACE = (204, 24, 24)     #COLOR RED
+FONT_INTERFACE = cv2.FONT_HERSHEY_PLAIN #Font
+COLOR_INTERFACE = (0, 255, 100)     #COLOR RED
+COLOR_INTERFACE_TOPICS = (0,0,0)    #Color Black
 COLOR_BORDER = [0, 0, 0]            #COLOR BLACK
 THICKNESS_FONT = 1                  #Size Font
-
+THICKNESS_TOPICS_FONT = 2
 #ROS Parameters
 ROS_QUEUE_SIZE = 10                  #ROS Queue Size
 
-ROS_CAMERA_TOPICS_BTTN = "camera/bottom/"
-ROS_CAMERA_TOPICS_FRNT = "camera/front/"
+ROS_CAMERA_TOPICS_BTTN = "stream/bottom/"
+ROS_CAMERA_TOPICS_FRNT = "stream/front/"
