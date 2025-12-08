@@ -32,14 +32,14 @@ cd imav-videostream
 Bash datei start_docker.sh ausführen
 ```
 chmod +x start_docker.sh
-./start_docker.sh
+./start_docker.sh (--test for test --main for latest)
 ```
 ### Starten der Nodes
 Ausführung des Scripts start_ROS.sh
 ```
+chmod +x start_ROS.sh
 ./start_ROS.sh
 ```
-
 
 ## ROS Node create
 # Python
