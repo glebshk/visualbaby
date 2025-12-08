@@ -85,32 +85,19 @@ class DetectorNode(Node):
                     self.get_logger().debug(f"Marker ID {marker_id} detected")
                     # Calculate Position and Rotation matrix of Aruco Marker from Camera in mm
                     try:
-                        marker_rvecs, marker_tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(self.aruco_corners[i],cfg.MARKER_SIZE_LIST[str(marker_id)],
+                        self.marker_rvecs, self.marker_tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(self.aruco_corners[i],cfg.MARKER_SIZE_LIST[str(marker_id)],
                                                                                         self.camera_matrix,self.distance_coefficients)
                         
-                        # Draw Axis and Info on Frame
-                        corner = tuple(self.aruco_corners[i][0][0].ravel())
+                        if cfg.DRAW_MARKER:
+                            # Draw Axis on Marker
+                            self.draw_axis(i)
 
-                        # Achsenlänge in mm oder Pixeln
-                        axis_length = 50
-                        axis_points = np.float32([
-                            [axis_length, 0, 0],  # X
-                            [0, axis_length, 0],  # Y
-                            [0, 0, axis_length]   # Z
-                        ]).reshape(-1,3)
-
-                        # Projektieren auf das Bild
-                        imgpts, _ = cv2.projectPoints(axis_points, marker_rvecs, marker_tvecs, self.camera_matrix, self.distance_coefficients)
-
-                        # Linien zeichnen: Rot = X, Grün = Y, Blau = Z
-                        self.frame = cv2.line(self.frame, corner, tuple(imgpts[0].ravel()), (0,0,255), 3)
-                        self.frame = cv2.line(self.frame, corner, tuple(imgpts[1].ravel()), (0,255,0), 3)
-                        self.frame = cv2.line(self.frame, corner, tuple(imgpts[2].ravel()), (255,0,0), 3)
-                        cv2.putText(self.frame, f"ID: {marker_id}", (int(self.aruco_corners[i][0][0][0]), int(self.aruco_corners[i][0][0][1]-15)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 2)
-                        cv2.putText(self.frame, f"Pos: x:{round(marker_tvecs[0][0][0],2)} y: {round(marker_tvecs[0][0][1],2)} z: {round(marker_tvecs[0][0][2],2)}", (int(self.aruco_corners[i][0][0][0]), int(self.aruco_corners[i][0][0][1]-35)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 2)
-                        
+                            # Draw Info on Frame
+                            cv2.putText(self.frame, f"ID: {marker_id}", (int(self.aruco_corners[i][0][0][0]), int(self.aruco_corners[i][0][0][1]-15)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 2)
+                            cv2.putText(self.frame, f"Pos: x:{round(self.marker_tvecs[0][0][0],2)} y: {round(self.marker_tvecs[0][0][1],2)} z: {round(self.marker_tvecs[0][0][2],2)}", (int(self.aruco_corners[i][0][0][0]), int(self.aruco_corners[i][0][0][1]-35)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 2)
+                            
                         # Save Marker info in Dict
-                        self.marker_list[f"{marker_id}"] = [marker_tvecs,marker_rvecs]
+                        self.marker_list[f"{marker_id}"] = [self.marker_tvecs,self.marker_rvecs]
                     except:
                         self.get_logger().error("Position estimation not possible")
             
@@ -134,13 +121,43 @@ class DetectorNode(Node):
         self.pub_image.publish(img_msg)
     
     def to_serializable(self,obj):
-                if isinstance(obj, np.ndarray):
-                    return obj.tolist()
-                if isinstance(obj, (np.float32, np.float64)):
-                    return float(obj)
-                if isinstance(obj, (np.int32, np.int64)):
-                    return int(obj)
-                return obj
+        # Convert Numpy types to native Python types for JSON serialization
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        if isinstance(obj, (np.float32, np.float64)):
+            return float(obj)
+        if isinstance(obj, (np.int32, np.int64)):
+            return int(obj)
+        return obj
+
+    def draw_axis(self, i):
+        # Draw Axis and Info on Frame
+        corner = tuple(self.aruco_corners[i][0][0].ravel())
+
+        # Achsenlänge in mm
+        axis_points = np.float32([
+            [cfg.MARKER_AXIS_LENGTH, 0, 0],  # X
+            [0, cfg.MARKER_AXIS_LENGTH, 0],  # Y
+            [0, 0, cfg.MARKER_AXIS_LENGTH]   # Z
+        ]).reshape(-1,3)
+
+        rvec = self.marker_rvecs[0][0].astype(np.float32)
+        tvec = self.marker_tvecs[0][0].astype(np.float32)
+        
+        # Projektieren auf das Bild
+        imgpts, _ = cv2.projectPoints(axis_points, rvec, tvec, self.camera_matrix, self.distance_coefficients)
+        
+        # Ursprung in Pixelkoordinaten (tvec = Marker-Zentrum)
+        origin, _ = cv2.projectPoints(np.zeros((1,3), dtype=np.float32), rvec, tvec, self.camera_matrix, self.distance_coefficients)
+        origin = tuple(origin[0].ravel().astype(int))
+
+        # Projektierte Achsenpunkte
+        imgpts = np.int32(imgpts).reshape(-1,2)
+
+        # Linien zeichnen
+        self.frame = cv2.line(self.frame, origin, tuple(imgpts[0]), (0,0,255), cfg.MARKER_AXIS_THICKNESS)  # X = rot
+        self.frame = cv2.line(self.frame, origin, tuple(imgpts[1]), (0,255,0), cfg.MARKER_AXIS_THICKNESS)  # Y = grün
+        self.frame = cv2.line(self.frame, origin, tuple(imgpts[2]), (255,0,0), cfg.MARKER_AXIS_THICKNESS)  # Z = blau
 
 def main(args=None):
     rclpy.init(args=args)
