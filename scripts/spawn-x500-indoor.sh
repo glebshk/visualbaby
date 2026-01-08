@@ -1,0 +1,1 @@
+gz service -s /world/world_indoor/create --reqtype gz.msgs.EntityFactory --reptype gz.msgs.Boolean --timeout 1000 --req 'sdf_filename: "simulation/x500_mono_cam_down/model.sdf", name: "x500", pose: {position: {x: -7.65, y: 5.25, z: 0.1}}'

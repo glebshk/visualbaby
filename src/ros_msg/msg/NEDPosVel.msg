@@ -1,0 +1,2 @@
+ros_msg/Vector4 position
+ros_msg/Vector4 velocity

@@ -1,0 +1,27 @@
+<?xml version="1.0" ?>
+<robot name="windows" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+<xacro:include filename="$(find windows_description)/urdf/materials.xacro" />
+<xacro:include filename="$(find windows_description)/urdf/windows.trans" />
+<xacro:include filename="$(find windows_description)/urdf/windows.gazebo" />
+<link name="base_link">
+  <inertial>
+    <origin xyz="0.8 0.3573946515397083 0.1455834683954619" rpy="0 0 0"/>
+    <mass value="9686.9"/>
+    <inertia ixx="3477.707945" iyy="3635.944133" izz="3792.328645" ixy="0.0" iyz="47.421451" ixz="0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="file://$(find windows_description)/meshes/gate.dae" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </visual>
+  <collision>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="file://$(find windows_description)/meshes/gate.dae" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+</robot>

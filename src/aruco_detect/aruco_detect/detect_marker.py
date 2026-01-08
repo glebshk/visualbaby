@@ -54,11 +54,12 @@ class DetectorNode(Node):
         self.pub_image = self.create_publisher(Image,f"{pub_img_topic}", cfg.ROS_QUEUE_SIZE)
         self.get_logger().info(f'Publish marker dict on "{pub_img_topic}"')
 
+
     def import_camera_parameter(self): # Import Camera parameter
         self.get_logger().info("Import Camera Parameters")
         try:
             # Import from yamlfile camera matrix
-            cv_file = cv2.FileStorage(f"./camera_calibration/calibration_{self.camera_type}_{self.serial}.yaml", cv2.FILE_STORAGE_READ) 
+            cv_file = cv2.FileStorage(f"./src/camera_calibration/calibration_{self.camera_type}_{self.serial}.yaml", cv2.FILE_STORAGE_READ) 
             self.camera_matrix = cv_file.getNode('K').mat()
             self.distance_coefficients = cv_file.getNode('D').mat()
             cv_file.release()
@@ -82,7 +83,7 @@ class DetectorNode(Node):
                 
                 # Check if Marker is in Marker list
                 if str(marker_id) in cfg.MARKER_SIZE_LIST:
-                    self.get_logger().debug(f"Marker ID {marker_id} detected")
+                    self.get_logger().info(f"Marker ID {marker_id} detected")
                     # Calculate Position and Rotation matrix of Aruco Marker from Camera in mm
                     try:
                         self.marker_rvecs, self.marker_tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(self.aruco_corners[i],cfg.MARKER_SIZE_LIST[str(marker_id)],

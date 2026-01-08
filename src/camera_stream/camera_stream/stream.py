@@ -284,7 +284,7 @@ class RTSPPublisher(Node):
         self.cpu_usage = psutil.cpu_percent()
         self.memory = psutil.virtual_memory()
         self.memory_usage = self.memory.percent
-        self.cpu_temp = psutil.sensors_temperatures()["cpu_thermal"][0].current
+        #self.cpu_temp = psutil.sensors_temperatures()["cpu_thermal"][0].current
     
     def add_system_info(self):
         # Add system info to frame
@@ -292,7 +292,7 @@ class RTSPPublisher(Node):
         cv2.putText(self.frame,f"FPS:{self.fps}", (30,50),cfg.FONT_INTERFACE,cfg.THICKNESS_FONT,cfg.COLOR_INTERFACE,cfg.THICKNESS_FONT)
         cv2.putText(self.frame,f"CPU:{self.cpu_usage}%",(30,70),cfg.FONT_INTERFACE,cfg.THICKNESS_FONT,cfg.COLOR_INTERFACE,cfg.THICKNESS_FONT)
         cv2.putText(self.frame,f"RAM:{self.memory_usage}%",(30,90),cfg.FONT_INTERFACE,cfg.THICKNESS_FONT,cfg.COLOR_INTERFACE,cfg.THICKNESS_FONT)
-        cv2.putText(self.frame,f"TEMP:{round(self.cpu_temp,1)}C",(30,110),cfg.FONT_INTERFACE,cfg.THICKNESS_FONT,cfg.COLOR_INTERFACE,cfg.THICKNESS_FONT)  
+        #cv2.putText(self.frame,f"TEMP:{round(self.cpu_temp,1)}C",(30,110),cfg.FONT_INTERFACE,cfg.THICKNESS_FONT,cfg.COLOR_INTERFACE,cfg.THICKNESS_FONT)  
 
     def push_frame(self, appsrc):
         ret = self.get_frame()
@@ -316,7 +316,7 @@ class RTSPPublisher(Node):
         self.frame_count += 1
 
         #Push Frames to GStreamer Pipline
-        self.get_logger().debug(f"push frame num frame {self.frame_count}")
+        self.get_logger().info:(f"push frame num frame {self.frame_count}")
         appsrc.emit('push-buffer', buf)
         return True  # für GLib.timeout_add -> wieder aufrufen
 

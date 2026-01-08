@@ -1,0 +1,28 @@
+{
+  "name": "IMAV Videostream Devcontainer",
+  "image": "ghcr.io/aachen-drone-development-initiative/imav-videostream/imav-dev:latest",
+  "containerEnv": {
+    "LIBVA_DRIVER_NAME": "iHD",
+    "DISPLAY": "${env:DISPLAY}",
+    "QT_X11_NO_MITSHM": "1",
+    "FASTRTPS_DEFAULT_PROFILES_FILE": "/root/.ros/fastdds.xml"
+  },
+  "mounts": [
+    "source=/tmp/.X11-unix,target=/tmp/.X11-unix,type=bind"
+  ],
+  "forwardPorts": [14550, 8555],
+  "postCreateCommand": "mkdir -p /root/.ros && echo '<profiles><participant profile_name=\"default\" is_default_profile=\"true\"><rtps><useBuiltinTransports>true</useBuiltinTransports><userTransports/></rtps></participant></profiles>' > /root/.ros/fastdds.xml",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.shell.linux": "/bin/bash",
+        "dev.containers.mountWaylandSocket": false
+      },
+      "extensions": [
+        "ms-iot.vscode-ros",
+        "ms-vscode.cpptools"
+      ]
+    }
+  },
+  "remoteUser": "root"
+}

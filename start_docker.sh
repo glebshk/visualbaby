@@ -23,11 +23,11 @@ while [[ "$#" -gt 0 ]]; do
             echo "run container"
             {
                     echo "Run container with video devices."
-                    docker run -it --name imav --device=/dev/video0:/dev/video0 --device=/dev/video1:/dev/video1 --device=/dev/bus/usb:/dev/bus/usb -p 8555:8555 ghcr.io/aachen-drone-development-initiative/imav-videostream/imav_video:latest /bin/bash
+                    docker run -it --name imav --device=/dev/video0:/dev/video0 --device=/dev/video1:/dev/video1 --device=/dev/bus/usb:/dev/bus/usb --device=/dev/ttyAMA0:/dev/ttyAMA0  -p 8555:8555 ghcr.io/aachen-drone-development-initiative/imav-videostream/imav-drone:latest /bin/bash
             } || {
                 echo "Run container without video devices."
                 docker rm imav
-                docker run -it --name imav --device=/dev/bus/usb:/dev/bus/usb -p 8555:8555 ghcr.io/aachen-drone-development-initiative/imav-videostream/imav_video:latest /bin/bash
+                docker run -it --name imav --device=/dev/bus/usb:/dev/bus/usb --device=/dev/ttyAMA0:/dev/ttyAMA0  -p 8555:8555 ghcr.io/aachen-drone-development-initiative/imav-videostream/imav-drone:latest /bin/bash
                 }
                  ;;
         --test)
@@ -41,11 +41,11 @@ while [[ "$#" -gt 0 ]]; do
             }
     {
             echo "Start container 'imav-test' with video access"
-            docker run -it --name imav-test --device=/dev/video0:/dev/video0 --device=/dev/video1:/dev/video1 --device=/dev/bus/usb:/dev/bus/usb -p 8555:8555 ghcr.io/aachen-drone-development-initiative/imav-videostream/imav_video:test /bin/bash
+            docker run -it --name imav-test --device=/dev/video0:/dev/video0 --device=/dev/video1:/dev/video1 --device=/dev/bus/usb:/dev/bus/usb  --device=/dev/ttyAMA0:/dev/ttyAMA0 -p 8555:8555 ghcr.io/aachen-drone-development-initiative/imav-videostream/imav-drone:test /bin/bash
             } || {
             echo "Start container without video access"
                 docker rm imav-test
-                docker run -it --name imav-test --device=/dev/bus/usb:/dev/bus/usb -p 8555:8555 ghcr.io/aachen-drone-development-initiative/imav-videostream/imav_video:test /bin/bash
+                docker run -it --name imav-test --device=/dev/bus/usb:/dev/bus/usb --device=/dev/ttyAMA0:/dev/ttyAMA0 -p 8555:8555 ghcr.io/aachen-drone-development-initiative/imav-videostream/imav-drone:test /bin/bash
              } ;;
 
         -h|--help) 

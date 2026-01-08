@@ -1,0 +1,3 @@
+ros_msg/Vector4 position
+ros_msg/Vector4 velocity
+geometry_msgs/Vector3 acceleration

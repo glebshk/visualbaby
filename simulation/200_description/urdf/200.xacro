@@ -1,0 +1,55 @@
+<?xml version="1.0" ?>
+<robot name="200" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+<xacro:include filename="$(find 200_description)/urdf/materials.xacro" />
+<xacro:include filename="$(find 200_description)/urdf/200.trans" />
+<xacro:include filename="$(find 200_description)/urdf/200.gazebo" />
+<link name="base_link">
+  <inertial>
+    <origin xyz="0.05 0.001 -0.05" rpy="0 0 0"/>
+    <mass value="0.15699999999999997"/>
+    <inertia ixx="0.000131" iyy="0.000262" izz="0.000131" ixy="0.0" iyz="0.0" ixz="0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="file://$(find 200_description)/meshes/base_link.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="file://$(find 200_description)/meshes/base_link.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="second_1_1">
+  <inertial>
+    <origin xyz="-0.050732265221773196 0.0010000000000000009 0.0492371488831426" rpy="0 0 0"/>
+    <mass value="0.11911065296796901"/>
+    <inertia ixx="0.000111" iyy="0.00023" izz="0.000119" ixy="0.0" iyz="-0.0" ixz="4e-06"/>
+  </inertial>
+  <visual>
+    <origin xyz="-0.1 -0.002 0.1" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="file://$(find 200_description)/meshes/second_1_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="-0.1 -0.002 0.1" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="file://$(find 200_description)/meshes/second_1_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<joint name="Starr 1" type="fixed">
+  <origin xyz="0.1 0.002 -0.1" rpy="0 0 0"/>
+  <parent link="base_link"/>
+  <child link="second_1_1"/>
+</joint>
+
+</robot>

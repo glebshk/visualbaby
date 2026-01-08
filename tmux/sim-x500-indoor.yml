@@ -1,0 +1,52 @@
+name: sim-x500-indoor
+
+windows:
+  - ros2:
+      layout: even-vertical
+      panes:
+        - sitl:
+            - printf '\033]2;%s\033\\' 'sitl'
+            - source install/setup.bash
+            - sleep 10
+            - ./scripts/spawn-x500-indoor.sh
+            - sleep 5
+            - ./scripts/launch-sitl-x500-indoor.sh
+            - sleep 6
+            - param set MIS_TAKEOFF_ALT 2.0m
+        - sim-launch:
+            - printf '\033]2;%s\033\\' 'sim-launch'
+            - source install/setup.bash
+            - sleep 15
+            - ros2 run px4_to_ros2 px4
+        - fly:
+            - source install/setup.bash
+            - sleep 30
+            - ros2 run fly_main exec
+        - detect:
+            - source install/setup.bash
+            - sleep 15
+            - ros2 launch aruco_detect sim_launch.py
+  - simulation:
+      layout: even-vertical
+      panes:
+        - gazebo:
+            - printf '\033]2;%s\033\\' 'gazebo'
+            - source install/setup.bash
+            - ./scripts/launch-gazebo-default.sh
+        - change-navstate:
+            - printf '\033]2;%s\033\\' 'sim-launch'
+            - source install/setup.bash
+            - sleep 20
+            - ros2 run help_functions change_nav_state
+        - parameter-server:
+            - printf '\033]2;%s\033\\' 'parameter-server'
+            - source install/setup.bash
+            - ros2 launch parameter_server parameter_server.launch.py
+        - image-transport:
+            - printf '\033]2;%s\033\\' 'image-transport'
+            - source install/setup.bash
+            - ros2 run ros_gz_bridge parameter_bridge /camera@sensor_msgs/msg/Image@gz.msgs.Image
+        - camera-info:
+            - printf '\033]2;%s\033\\' 'camera_info'
+            - source install/setup.bash
+            - ros2 run ros_gz_bridge parameter_bridge /camera_info@sensor_msgs/msg/CameraInfo@gz.msgs.CameraInfo

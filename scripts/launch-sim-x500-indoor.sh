@@ -1,0 +1,1 @@
+tmuxinator start sim-x500-indoor -p tmux/sim-x500-indoor.yml

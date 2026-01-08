@@ -1,0 +1,14 @@
+material Base/Zebra
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture zebra.png
+        filtering trilinear
+      }
+    }
+  }
+}

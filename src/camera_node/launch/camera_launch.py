@@ -28,33 +28,6 @@ def generate_launch_description():
                 'camera_rotation': 180
             }]
         ),
-        
-        Node(
-            package='aruco_detect',
-            executable='detect',
-            name='aruco_detection_bottom',
-            output='screen',
-            parameters=[{
-                'listen_on_topic':'camera/bottom/rgb',
-                'camera_type': 'USB',
-                'camera_serial': "640480"
-            }
-            ]
-                    
-        ),
-        Node(
-            package='aruco_detect',
-            executable='detect',
-            name='aruco_detection_front',
-            output='screen',
-            parameters=[{
-                'listen_on_topic':'camera/front/rgb',
-                'camera_type': 'Realsense',
-                'camera_serial': "918512073048"
-            }
-            ]
-                    
-        ),
         Node(
             package='camera_stream',
             executable='stream',

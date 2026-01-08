@@ -1,0 +1,28 @@
+<?xml version="1.0" ?>
+<robot name="landing_site" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+<xacro:include filename="$(find landing_site_description)/urdf/materials.xacro" />
+<xacro:include filename="$(find landing_site_description)/urdf/landing_site.trans" />
+<xacro:include filename="$(find landing_site_description)/urdf/landing_site.gazebo" />
+<link name="base_link">
+  <inertial>
+    <origin xyz="1.5081202244081888 0.15895590104422205 -0.5000001654521498" rpy="0 0 0"/>
+    <mass value="2856.707438039769"/>
+    <inertia ixx="406.177577" iyy="2298.228665" izz="2307.804581" ixy="-34.81987" iyz="0.000409" ixz="-0.000516"/>
+  </inertial>
+  <visual>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="file://$(find landing_site_description)/meshes/base_link.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="file://$(find landing_site_description)/meshes/base_link.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+</robot>

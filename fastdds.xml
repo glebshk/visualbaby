@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<profiles>
+    <participant profile_name="default" is_default_profile="true">
+        <rtps>
+            <name>IMAVParticipant</name>
+            <builtin>
+                <metatrafficMulticastLocatorList>
+                    <locator>
+                        <kind>UDPv4</kind>
+                        <address>239.255.0.1</address>
+                        <port>7400</port>
+                    </locator>
+                </metatrafficMulticastLocatorList>
+            </builtin>
+            <userTransports>
+                <transport_id>udp_transport</transport_id>
+                <type>UDPv4</type>
+            </userTransports>
+            <sendSocketBufferSize>524288</sendSocketBufferSize>
+            <listenSocketBufferSize>524288</listenSocketBufferSize>
+        </rtps>
+    </participant>
+</profiles>

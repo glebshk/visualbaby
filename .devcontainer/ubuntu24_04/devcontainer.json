@@ -1,0 +1,33 @@
+{
+    "name": "IMAV ROS2 Devcontainer",
+    "image":"ghcr.io/aachen-drone-development-initiative/imav-videostream/imav-dev:latest",
+    //"build": {
+    //    "dockerfile": "../docker/Dockerfile"
+    //},
+"runArgs": [
+    "--shm-size=512m",
+    "--device=/dev/dri",
+    "--network=host",
+    "--device=/dev/bus/usb",
+    "-p", "14550:14550/udp",
+    "-p", "8555:8555/udp",
+
+    "--env=DISPLAY",
+    "--env=QT_X11_NO_MITSHM=1",
+
+    "--mount=type=bind,source=/tmp/.X11-unix,target=/tmp/.X11-unix"
+    ],
+    "forwardPorts": [8555],
+    "containerEnv": {
+        "FASTRTPS_DEFAULT_PROFILES_FILE": "/root/.ros/fastdds.xml"  // optional, falls eigenes XML genutzt wird
+    },
+    "settings": {
+        "terminal.integrated.shell.linux": "/bin/bash"
+    },
+    "extensions": [
+        "ms-iot.vscode-ros",
+        "ms-vscode.cpptools"
+    ],
+    "initializeCommand": "xhost +local:root",
+    "postCreateCommand": "mkdir -p /root/.ros && echo '<profiles><participant profile_name=\"default\" is_default_profile=\"true\"><rtps><useBuiltinTransports>true</useBuiltinTransports><userTransports/></rtps></participant></profiles>' > /root/.ros/fastdds.xml"
+}

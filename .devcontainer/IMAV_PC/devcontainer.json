@@ -1,0 +1,39 @@
+{
+    "name": "IMAV ROS2 Devcontainer",
+    "image": "ghcr.io/aachen-drone-development-initiative/imav-videostream/imav-dev:latest",
+    "runArgs": [
+        "--shm-size=512m",
+        "--device=/dev/dri",
+       // "--network=host",
+        "--device=/dev/bus/usb",
+        "-p", "14550:14550/udp",
+        "-p", "8555:8555/udp"
+    ],
+    "mounts": [
+        "source=/tmp/.X11-unix,target=/tmp/.X11-unix,type=bind,consistency=cached",
+		// "source=${localWorkspaceFolder}/gz-cache,target=/root/.gz/fuel,type=bind,consistency=cached" ,
+		"source=/etc/localtime,target=/usr/share/zoneinfo/hostlocaltime,type=bind,readonly",
+		"source=/dev/input,target=/dev/input,type=bind,consistency=cached" 
+		// "source=$XAUTH,target=$XAUTH,type=bind,consistency=cached"
+    ],
+    "forwardPorts": [8555],
+    "containerEnv": {
+        "DISPLAY": "${localEnv:DISPLAY}",
+		"QT_X11_NO_MITSHM": "1",
+		"XAUTHORITY": "${localEnv:XAUTH}",
+		"XAUTH": "${localEnv:XAUTH}",
+		"NVIDIA_DRIVER_CAPABILITIES": "all",
+        "FASTRTPS_DEFAULT_PROFILES_FILE": "/root/.ros/fastdds.xml"
+    },
+     
+    "settings": {
+        "terminal.integrated.shell.linux": "/bin/bash"
+    },
+    "extensions": [
+        "ms-iot.vscode-ros",
+        "ms-vscode.cpptools"
+    ],
+    "initializeCommand": "xhost +local:root",
+    "postCreateCommand": "mkdir -p /root/.ros /tmp/runtime-root && chmod 700 /tmp/runtime-root && echo '<profiles><participant profile_name=\"default\" is_default_profile=\"true\"><rtps><useBuiltinTransports>true</useBuiltinTransports><userTransports/></rtps></participant></profiles>' > /root/.ros/fastdds.xml"
+
+}
