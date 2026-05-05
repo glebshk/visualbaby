@@ -7,18 +7,21 @@ ENV DEBIAN_FRONTEND=noninteractive
 # ------------------------------------------------------------
 # 1. Grundsystem vorbereiten
 # ------------------------------------------------------------
-RUN apt-get update && apt upgrade -y && apt install -y curl gnupg2 lsb-release locales software-properties-common git python3-pip
-
-# Arbeitsverzeichnis
 WORKDIR /app
 
-# Kopiere lokalen Repo-Inhalt ins Docker-Image
-COPY /docker/ /app/
+COPY /docker/base/ /app/
+
+RUN apt-get update && apt-get install -y jq
+
+RUN apt-get update && \
+    jq -r '.apt[]' packages.json | \
+    xargs apt-get install -y
 
 # Locale setzen (wichtig für ROS 2 Tools)
-RUN locale-gen en_US en_US.UTF-8 && \
-    update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
-ENV LANG en_US.UTF-8
+RUN apt-get update && apt-get install -y locales && \
+    sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && \
+    locale-gen && \
+    update-locale LANG=en_US.UTF-8
 
 
 # ------------------------------------------------------------
@@ -27,62 +30,26 @@ ENV LANG en_US.UTF-8
 RUN curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
     -o /usr/share/keyrings/ros-archive-keyring.gpg
 
-RUN echo "deb [arch=$(dpkg --print-architecture) \
-    signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] \
-    http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" \
+RUN echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" \
     > /etc/apt/sources.list.d/ros2.list
 
-WORKDIR /app
 
-COPY /docker/apt-requirements.txt /app/apt-requirements.txt
 # Install basic dependencies
-RUN apt update -y && \
-    apt install -y ros-humble-desktop \
-        python3-pip \
-        rapidjson-dev\ 
-        libv4l-dev \
-        v4l-utils \
-        python3-argcomplete \
-        python3-colcon-common-extensions \
-        ros-humble-cv-bridge \
-        python3-gi \
-        gir1.2-gstreamer-1.0 \
-        gir1.2-gst-rtsp-server-1.0 \
-        libgstreamer1.0-0 \
-        libgstreamer-plugins-base1.0-0 \
-        gstreamer1.0-plugins-base \
-        gstreamer1.0-plugins-good \
-        gstreamer1.0-plugins-bad \
-        gstreamer1.0-plugins-ugly \
-        gstreamer1.0-libav \
-        libgstrtspserver-1.0-0 \
-        gstreamer1.0-rtsp \
-        ros-humble-rclpy-message-converter \
-        curl \
-        gnupg2 \
-        lsb-release \
-        git \
-        locales \
-        cmake \
-        build-essential \
-        vim && \
+
+RUN apt-get update && apt install -y ros-humble-desktop ros-humble-cv-bridge ros-humble-rclpy-message-converter python3-colcon-common-extensions && \
     rm -rf /var/lib/apt/lists/*
  
 # ------------------------------------------------------------
 # Install Python dependencies
 # ------------------------------------------------------------
-COPY /docker/pip-requirements.txt /app/pip-requirements.txt
+COPY /docker/base/pip-requirements.txt /app/pip-requirements.txt
 
 RUN pip install -r pip-requirements.txt
 
 # Install Realsense SDK
 # Abhängigkeiten installieren
 WORKDIR /app/realsense
-RUN apt-get update && apt-get upgrade -y \
-    && apt-get install git cmake build-essential \
-    libssl-dev libusb-1.0-0-dev pkg-config \
-    libgtk-3-dev libglfw3-dev libgl1-mesa-dev libglu1-mesa-dev \
-    python3-dev python3-pip -y
+RUN apt-get update 
 
 # Realsense hohlen
 RUN git clone https://github.com/IntelRealSense/librealsense.git
@@ -94,28 +61,23 @@ RUN cp config/99-realsense-libusb.rules /etc/udev/rules.d/
 # Build-Konfiguration
 WORKDIR /app/realsense/librealsense/build
 RUN cmake .. \
-    -DBUILD_EXAMPLES=true \
-    -DBUILD_GRAPHICAL_EXAMPLES=true \
-    -DCMAKE_BUILD_TYPE=Release -DFORCE_RSUSB_BACKEND=true \
-    -DBUILD_PYTHON_BINDINGS=bool:true \
-    -DPYTHON_EXECUTABLE=$(which python3)
+      -DCMAKE_BUILD_TYPE=Release \
+      -DFORCE_RSUSB_BACKEND=true \
+      -DBUILD_EXAMPLES=false \
+      -DBUILD_GRAPHICAL_EXAMPLES=false \
+      -DBUILD_NETWORK_DEVICE=OFF \
+      -DUSE_SYSTEM_LIBCURL=ON && \
+    make -j$(nproc) && \
+    make install
 
-# Builden
-RUN make
-RUN make install
-#RUN udevadm control --reload-rules
-#RUN udevadm trigger
-# Install Python Bindings
-#RUN cp ./Release/pyrealsense2.cpython-310-aarch64-linux-gnu.so /usr/lib/python3/dist-packages/pyrealsense2.so
 
 # ------------------------------------------------------------
 # 4. Arbeitsverzeichnis anlegen und Quellcode kopieren
 # ------------------------------------------------------------
 WORKDIR /workspaces/imav-videostream/
-COPY /start_ROS.sh /workspaces/imav-videostream/start_ROS.sh
 COPY /src/ /workspaces/imav-videostream/src/
 RUN git config --global --add safe.directory /workspaces/imav-videostream/build/camera_node/_deps/grabthecam-src
-#RUN chmod +x start.sh
+
 
 # ------------------------------------------------------------
 # 4. ROS Umgebung automatisch laden
@@ -125,6 +87,5 @@ RUN echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc
 
 WORKDIR /workspaces/imav-videostream/
 
-#CMD ["/workspaces/imav-videostream/start.sh"]
 CMD ["/bin/bash"]
 

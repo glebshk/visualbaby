@@ -1,48 +1,80 @@
 # IMAV-videostream
-ROS Nodes zur Aufnahme von Bildern (camera_node) (Realsense und USB Cameras) die Erkennung von Arucomarkern (aruco_detect) sowie das Streamen der Bilder zum debuggen (camera_stream).
+IMAV 2026 Base Repo 
 
-## Nutzung der Nodes
-### Docker
-Herunterladen des docker Containers
-1. anmelden bei ghcr.io
+# Preparation
+## Docker Images
+### Login to ghcr.io
+> [!NOTE]
+> To get the Token you have to create an personal access token(classic).
+> You find it here [Token](https://github.com/settings/tokens)
+> You have to give minimum write/read:packages right
 ```
-echo TOKEN_HERE | docker login ghcr.io -u GITHUB_USERNAME --password-stdin
+echo TOKEN_HERE | docker login ghcr.io -u YOUR_GITHUB_USERNAME --password-stdin
 ```
-Als Token den Classic Access Token
 
-2. Herunterladen des docker Container
-Vor dem Herunterladen auf ipv4 setzen
+### IPv4 Setup for RPi
+Setup IPv4 for better download of the image
 ```
 sudo sysctl -p /etc/sysctl.d/99-disable-ipv6.conf
 ```
-Dann docker herunterladen
+### Pull Docker image
+For the drone 
 ```
-docker pull ghcr.io/aachen-drone-development-initiative/imav-videostream/imav_video:latest
+docker pull ghcr.io/aachen-drone-development-initiative/imav-videostream/imav-drone:latest
+```
+For developement
+```
+docker pull ghcr.io/aachen-drone-development-initiative/imav-videostream/imav-dev:latest
 ```
 
-### Clonen des Git Repositorys
-```
-git clone git@github.com:Aachen-Drone-Development-Initiative/imav-videostream.git
-```
-In Repo gehen
-```
-cd imav-videostream
-```
-### Docker starten
-Bash datei start_docker.sh ausführen
+# Drone Operation
+## Start of docker
+Start docker via bash file
+> [!NOTE]
+> -- test for the ghcr.io/aachen-drone-development-initiative/imav-videostream/imav-drone:test images
+> -- main for the ghcr.io/aachen-drone-development-initiative/imav-videostream/imav-drone:latest images
 ```
 chmod +x start_docker.sh
-./start_docker.sh (--test for test --main for latest)
+./start_docker.sh --main
 ```
-### Starten der Nodes
-Ausführung des Scripts start_ROS.sh
+## Start Fly
+Start of fly bash file
 ```
-chmod +x start_ROS.sh
-./start_ROS.sh
+./scripts/fly_x500.sh
 ```
 
-## ROS Node create
-# Python
+# Simulation Docker
+## Setup docker container
+### Download dev docker
+First Download the Docker Image
+```
+docker pull ghcr.io/aachen-drone-development-initiative/imav-videostream/imav-dev:latest
+```
+
+## Start Docker Container
+Open the Docker image with the Container Extension with the setup file "devcontainer.json".
+
+There are different Cofigurations for ubuntu24.04, windows and the Imav PC
+
+
+## Start Simulation
+### Setup Simulation
+If you changed something in the Code then run the setup script
+```
+./scripts/setup-sim.sh
+```
+
+### Run Simulation
+Run the startup Script of the simulation
+```
+./scripts/lauch-sim-x500-indoor.sh
+```
+
+### Kill Simulation
+> [!NOTE]
+> Please Close the Gazebo GUI first, because if not gazebo crash and you have to restart the container.
+
+You have to close the Gazebo GUI first then kill the tmux session
 ```
 ros2 pkg create --build-type ament_python my_python_pkg
 ```

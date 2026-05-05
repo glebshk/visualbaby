@@ -30,7 +30,6 @@ PX4-Autopilot/
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
 *.spec
-
 # Installer logs
 pip-log.txt
 pip-delete-this-directory.txt
@@ -217,6 +216,7 @@ __marimo__/
 /build_isolated/
 /src/install/
 /src/log/
+/logs/
 # ROS 2 workspace overlays
 /ros2_ws/build/
 /ros2_ws/install/
@@ -253,7 +253,7 @@ dist/
 *.swp
 .DS_Store
 Thumbs.db
-
+*.db3
 # -----------------------------
 # Python / ROS2 Python packages
 # -----------------------------

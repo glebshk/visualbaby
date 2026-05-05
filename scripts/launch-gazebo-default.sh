@@ -1,8 +1,10 @@
-PX4_SOURCE_DIR=/sim/PX4-Autopilot \
-    #PX4_GZ_MODELS=$PX4_SOURCE_DIR/Tools/simulation/gz/models \
-    PX4_GZ_WORLDS=$PX4_SOURCE_DIR/Tools/simulation/gz/worlds \
-    ADDITIONAL_GZ_MODELS=$PWD/simulation \
-    PX4_SIM_MODEL=iris_opticalflow \
-    GZ_SIM_RESOURCE_PATH=$GZ_SIM_RESOURCE_PATH:$PX4_GZ_WORLDS:$ADDITIONAL_GZ_MODELS \
-    gz sim -r $PWD/simulation/world_indoor.sdf
-    
+export PX4_SOURCE_DIR=/sim/PX4-Autopilot
+export PX4_GZ_WORLDS=$PX4_SOURCE_DIR/Tools/simulation/gz/worlds
+export ADDITIONAL_GZ_MODELS=$PWD/simulation
+export GZ_SIM_RESOURCE_PATH=$GZ_SIM_RESOURCE_PATH:$PX4_GZ_WORLDS:$ADDITIONAL_GZ_MODELS
+export GZ_SIM_SYSTEM_PLUGIN_PATH=$PX4_SOURCE_DIR/build/px4_sitl_default/build_gzsim:/usr/lib/x86_64-linux-gnu/gz-sim-7/plugins
+
+# Prüfen ob Pfad gesetzt ist
+echo $GZ_SIM_SYSTEM_PLUGIN_PATH
+
+gz sim $PWD/simulation/imav_2026.sdf -r

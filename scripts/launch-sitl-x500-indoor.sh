@@ -7,9 +7,8 @@ start_px4() {
     echo "Starte PX4..."
     PX4_SYS_AUTOSTART=4001 \
         PX4_GZ_MODEL_NAME=x500 \
-        PX4_GZ_STANDALONE=1 \
-        PX4_GZ_WORLD=world_indoor \
-        /sim/PX4-Autopilot/build/px4_sitl_default/bin/px4 -i 0
+        PX4_GZ_WORLD=imav2026 \
+        /sim/PX4-Autopilot/build/px4_sitl_default/bin/px4
 
 }
 

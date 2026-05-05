@@ -33,20 +33,11 @@ windows:
             - printf '\033]2;%s\033\\' 'gazebo'
             - source install/setup.bash
             - ./scripts/launch-gazebo-default.sh
-        - change-navstate:
-            - printf '\033]2;%s\033\\' 'sim-launch'
+
+        - gz-bridge:
             - source install/setup.bash
-            - sleep 20
-            - ros2 run help_functions change_nav_state
-        - parameter-server:
-            - printf '\033]2;%s\033\\' 'parameter-server'
+            - ros2 run ros_gz_bridge parameter_bridge --ros-args -p config_file:=/workspaces/imav-videostream/simulation/gz-bridge.yaml
+            
+        - platform:
             - source install/setup.bash
-            - ros2 launch parameter_server parameter_server.launch.py
-        - image-transport:
-            - printf '\033]2;%s\033\\' 'image-transport'
-            - source install/setup.bash
-            - ros2 run ros_gz_bridge parameter_bridge /camera@sensor_msgs/msg/Image@gz.msgs.Image
-        - camera-info:
-            - printf '\033]2;%s\033\\' 'camera_info'
-            - source install/setup.bash
-            - ros2 run ros_gz_bridge parameter_bridge /camera_info@sensor_msgs/msg/CameraInfo@gz.msgs.CameraInfo
+            - ./scripts/start_moving_platform.sh
