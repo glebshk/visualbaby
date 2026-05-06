@@ -42,8 +42,11 @@ Start of fly bash file
 ```
 ./scripts/fly_x500.sh
 ```
-
 # Simulation Docker
+
+> [!WARNING]
+> If you run Fedora or another Distro with SENLINUX you may have to disable it for docker to run correctly.
+
 ## Setup docker container
 ### Download dev docker
 First Download the Docker Image
@@ -78,6 +81,9 @@ You have to close the Gazebo GUI first then kill the tmux session
 ```
 ros2 pkg create --build-type ament_python my_python_pkg
 ```
+
+> [!WARNING]
+> If you run Fedora Linux or another Distro with SELINUX pre-installed, you may have to disable it for docker to work properly.
 
 # Simulation Docker
 ## Setup docker container
