@@ -5,11 +5,11 @@ RETRY_COUNT=0
 
 start_px4() {
     echo "Starte PX4..."
+    cd /sim/PX4-Autopilot
     PX4_SYS_AUTOSTART=4001 \
-        PX4_GZ_MODEL_NAME=x500 \
-        PX4_GZ_WORLD=imav2026 \
-        /sim/PX4-Autopilot/build/px4_sitl_default/bin/px4
-
+    PX4_GZ_MODEL_NAME=x500 \
+    PX4_GZ_WORLD=imav2026 \
+    make px4_sitl gz_x500
 }
 
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do

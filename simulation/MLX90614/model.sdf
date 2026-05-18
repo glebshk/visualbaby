@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sdf version='1.9'>
+
+  <model name='MLX90614'>
+
+    <link name="MLX90614_link">
+    <inertial>
+        <pose>0.00358 -0.03 .014 0 0 0</pose>
+        <mass>0.061</mass>
+        <inertia>
+          <ixx>0.0000460804</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.0000055421</iyy>
+          <iyz>0</iyz>
+          <izz>0.0000436519</izz>
+        </inertia>
+      </inertial>
+    <collision name="collision">
+      <geometry>
+        <mesh>
+            <uri>model://MLX90614/meshes/MLX90614.stl</uri>
+          </mesh>
+      </geometry>
+    </collision>
+    <visual name="visual">
+      <geometry>
+        <mesh>
+            <uri>model://MLX90614/meshes/MLX90614.stl</uri>
+          </mesh>
+      </geometry>
+    </visual>
+    <sensor name="camera_thermal" type="thermal">
+      <always_on>1</always_on>
+      <update_rate>10</update_rate>
+      <visualize>true</visualize>
+
+      <topic>/thermal</topic>
+
+      <camera>
+        <horizontal_fov>1.047</horizontal_fov>
+
+        <image>
+          <width>320</width>
+          <height>240</height>
+          <format>L16</format>
+        </image>
+
+        <clip>
+          <near>0.1</near>
+          <far>20</far>
+        </clip>
+      </camera>
+
+      <plugin
+        filename="ignition-gazebo-thermal-sensor-system"
+        name="gz::sim::systems::ThermalSensor">
+
+        <min_temp>250</min_temp>
+        <max_temp>500</max_temp>
+        <resolution>0.01</resolution>
+
+      </plugin>
+    </sensor>
+  </link>
+</model>
+</sdf>

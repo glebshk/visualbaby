@@ -36,8 +36,10 @@ windows:
 
         - gz-bridge:
             - source install/setup.bash
+            - sleep 3
             - ros2 run ros_gz_bridge parameter_bridge --ros-args -p config_file:=/workspaces/imav-videostream/simulation/gz-bridge.yaml
-            
-        - platform:
+        
+        - moving-landing:
             - source install/setup.bash
+            - sleep 10
             - ./scripts/start_moving_platform.sh

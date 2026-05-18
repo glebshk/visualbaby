@@ -1,5 +1,5 @@
 {
-  "name": "IMAV Videostream Devcontainer",
+  "name": "Windows Devcontainer",
   "image": "ghcr.io/aachen-drone-development-initiative/imav-videostream/imav-dev:latest",
   "containerEnv": {
     "LIBVA_DRIVER_NAME": "iHD",

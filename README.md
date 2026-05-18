@@ -31,7 +31,7 @@ docker pull ghcr.io/aachen-drone-development-initiative/imav-videostream/imav-de
 ## Start of docker
 Start docker via bash file
 > [!NOTE]
-> -- test for the ghcr.io/aachen-drone-development-initiative/imav-videostream/imav-drone:test images
+> -- test for the ghcr.io/aachen-drone-development-initiative/imav-videostream/imav-drone:test images 
 > -- main for the ghcr.io/aachen-drone-development-initiative/imav-videostream/imav-drone:latest images
 ```
 chmod +x start_docker.sh
@@ -42,11 +42,11 @@ Start of fly bash file
 ```
 ./scripts/fly_x500.sh
 ```
-# Simulation Docker
 
 > [!WARNING]
-> If you run Fedora or another Distro with SENLINUX you may have to disable it for docker to run correctly.
+> If you run Fedora Linux or another Distro with SELINUX pre-installed, you may have to disable it for docker to work properly.
 
+# Simulation Docker
 ## Setup docker container
 ### Download dev docker
 First Download the Docker Image
@@ -62,65 +62,36 @@ There are different Cofigurations for ubuntu24.04, windows and the Imav PC
 
 ## Start Simulation
 ### Setup Simulation
+> [!NOTE]
+> If you start your container the first time it is usefull to run ./scripts/launch_sitl-x500-indoor.sh for building px4 right. 
+> If not px4 is building at the first start of the simulation. After running the script Gazebo and the script with Ctrl +C
+
 If you changed something in the Code then run the setup script
 ```
 ./scripts/setup-sim.sh
 ```
+
 
 ### Run Simulation
 Run the startup Script of the simulation
 ```
 ./scripts/lauch-sim-x500-indoor.sh
 ```
+> [!NOTE]
+> If the the drone is not start px4 has to be build. If the build is finished restart the simulation with the command then it will work
+
 
 ### Kill Simulation
 > [!NOTE]
 > Please Close the Gazebo GUI first, because if not gazebo crash and you have to restart the container.
 
 You have to close the Gazebo GUI first then kill the tmux session
+
 ```
-ros2 pkg create --build-type ament_python my_python_pkg
+Ctrl. B + :kill-session
 ```
 
-> [!WARNING]
-> If you run Fedora Linux or another Distro with SELINUX pre-installed, you may have to disable it for docker to work properly.
-
-# Simulation Docker
-## Setup docker container
-### Download dev docker
-First Download the Docker Image
+### Start QGroundControl
+If you want to look onto the telemetry data directly you can start QGroundControl via the following script
 ```
-docker pull ghcr.io/aachen-drone-development-initiative/imav-videostream/imav-dev:latest
-```
-### Enable X11 Access for Docker
-Enable the X11 Access that the Docker container can open Windows
-```
-xhost +local:root
-```
-
-## Start Docker Container
-Open the Docker image with the Container Extension with the setup file "devcontainer.json"
-***
-At the first start of the Container you have to make the scripts executable
-```
-chmod +x scripts/
-```
-
-## Start Simulation
-### Setup Simulation
-If you changed something in the Code then run the setup script
-```
-./scripts/setup-sim.sh
-```
-
-### Run Simulation
-Run the startup Script of the simulation
-```
-./scripts/lauch-sim-x500-indoor.sh
-```
-
-### Kill Simulation
-To stop the Simulation use 
-```
-Strg. B + :kill-session
-```
+./scripts/launch-qgc.sh
