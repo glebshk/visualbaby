@@ -18,6 +18,7 @@
     "python3-dev",
     "python3-argcomplete",
     "python3-gi",
+    "i2c-tools",
 
     "libssl-dev",
     "libusb-1.0-0-dev",

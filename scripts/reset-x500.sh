@@ -1,4 +1,4 @@
-gz service -s /world/world_indoor/set_pose \
+gz service -s /world/imav2026/set_pose \
   --reqtype gz.msgs.Pose \
   --reptype gz.msgs.Boolean \
   --timeout 1000 \

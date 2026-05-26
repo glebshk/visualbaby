@@ -1,5 +1,5 @@
 {
-    "name": "Ubuntu 24.04 Devcontainer",
+    "name": "Ubuntu Devcontainer",
     "image":"ghcr.io/aachen-drone-development-initiative/imav-videostream/imav-dev:latest",
     //"build": {
     //    "dockerfile": "../docker/sim/Dockerfile"

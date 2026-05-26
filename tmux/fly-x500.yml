@@ -31,3 +31,8 @@ windows:
             - sleep 15
             - ros2 launch aruco_detect launch_fly.py
         
+        - peripherals:
+            - source install/setup.bash
+            - sleep 15
+            - ros2 launch peripherals_node launch_fly.py
+        

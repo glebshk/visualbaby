@@ -26,6 +26,11 @@ windows:
             - source install/setup.bash
             - sleep 15
             - ros2 launch aruco_detect sim_launch.py
+        - peripherals:
+            - source install/setup.bash
+            - sleep 15
+            - ros2 launch peripherals_node launch_sim.py
+        
   - simulation:
       layout: even-vertical
       panes:

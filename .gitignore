@@ -265,3 +265,4 @@ __pycache__/
 
 /docker/install
 /docker/log
+/simulation/imav_2026_random.sdf

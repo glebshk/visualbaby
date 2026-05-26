@@ -1,0 +1,35 @@
+version: "3.8"
+
+services:
+  imav:
+    image: ghcr.io/aachen-drone-development-initiative/imav-videostream/imav_video:latest
+    container_name: imav
+    tty: true
+    stdin_open: true
+    ports:
+      - "8555:8555"
+      - "8888:8888"
+    cap_add:
+      - SYS_RAWIO
+      - SYS_ADMIN
+    network_mode: host
+    devices:
+      - /dev/i2c-1:/dev/i2c-1
+      - /dev/gpiochip0:/dev/gpiochip0
+      - /dev/bus/usb:/dev/bus/usb
+      - /dev/ttyAMA0:/dev/ttyAMA0
+
+  imav-test:
+    image: ghcr.io/aachen-drone-development-initiative/imav-videostream/imav-drone:test
+    container_name: imav-test
+    tty: true
+    stdin_open: true
+    ports:
+      - "8555:8555"
+      - "8888:8888"
+    network_mode: host
+    devices:
+      - /dev/i2c-1:/dev/i2c-1
+      - /dev/gpiochip0:/dev/gpiochip0
+      - /dev/bus/usb:/dev/bus/usb
+      - /dev/ttyAMA0:/dev/ttyAMA0

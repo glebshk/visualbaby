@@ -20,12 +20,17 @@
 
     <include merge="true">
       <uri>model://MLX90614</uri>
-      <pose relative_to="base_link">-0.05 0 -0.1 0 3.14 0</pose>
+      <pose relative_to="base_link">-0.05 0 -0.1 0 0 0</pose>
     </include>
 
     <include merge="true">
       <uri>model://OakD-Lite_front</uri>
       <pose relative_to="base_link">0.2 0.03 0 0 0 0</pose>
+    </include>
+
+    <include>
+      <uri>model://cone</uri>
+      <pose relative_to="base_link">-0.03 0.04 -0.1 0 0 0</pose>
     </include>
 
     <!-- ========== JOINTS ========== -->
@@ -45,7 +50,7 @@
     <joint name="mlx90614_joint" type="fixed">
       <parent>base_link</parent>
       <child>MLX90614_link</child>
-      <pose relative_to="base_link">-0.05 0 -0.1 0 0 0</pose>
+      <pose relative_to="base_link">-0.05 0 -0.1 0 1.57 0</pose>
     </joint>
 
     <joint name="oakd_joint" type="fixed">
@@ -54,6 +59,13 @@
       <pose relative_to="base_link">0.1 0.03 0.3 0 0 0</pose>
     </joint>
 
+    <plugin filename="gz-sim-detachable-joint-system"
+            name="gz::sim::systems::DetachableJoint">
+      <parent_link>base_link</parent_link>
+      <child_model>cone</child_model>
+      <child_link>cone_link</child_link>
+      <detach_topic>/cone/detach</detach_topic>
+    </plugin>
     <!-- ========== CUSTOM LIDAR ========== -->
 
     <link name="lidar_sensor_link">
