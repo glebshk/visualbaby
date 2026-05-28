@@ -9,6 +9,6 @@ def generate_launch_description():
             name='peripherals_node',
             output='screen',
             parameters=[{
-                'env': 'real'
+                'env': 'drone'
             }]
         )]) 

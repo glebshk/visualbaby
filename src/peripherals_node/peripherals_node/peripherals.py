@@ -2,15 +2,14 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
 from std_msgs.msg import Float32, Bool, Empty
-import peripherals_node.MLX90614 as MLX90614
-import peripherals_node.GPIO as GPIO
+
 from cv_bridge import CvBridge
 
 class PeripheralsNode(Node):
     def __init__(self):
         super().__init__('peripherals_node')
         self.get_logger().info('Peripherals node started')
-        self.declare_parameter("env", "real")
+        self.declare_parameter("env", "drone")
         self.MLX90614_publisher_obj_temp = self.create_publisher(Float32, '/MLX90614/obj_temp', 10)
         self.MLX90614_publisher_amb_temp = self.create_publisher(Float32, '/MLX90614/amb_temp', 10)
         self.cv_bridge = CvBridge()
@@ -19,7 +18,12 @@ class PeripheralsNode(Node):
     def init_after_init(self):
         self.destroy_timer(self.init_timer)
         self.env = self.get_parameter("env").value
-        if self.env == "real":
+        if self.env == "drone":
+            # Importing hardware-specific libraries inside the real environment block to avoid issues in simulation
+            import peripherals_node.MLX90614 as MLX90614
+            import peripherals_node.GPIO as GPIO
+
+            # Initialize the MLX90614 sensor and GPIO controller for the real environment
             self.MLX90614_sensor = MLX90614.MLX90614()
             self.MLX90614_real_timer = self.create_timer(1, self.MLX90614_real_callback)
             self.gpio_controller = GPIO.GPIOController()
@@ -34,7 +38,7 @@ class PeripheralsNode(Node):
                 callback=self.MLX90614_simulation_callback,
                 qos_profile=10
             )
-            self.create_subscription(Bool, "/Cone/servo_state", self.cone_servo_callback_simulation, 10)
+            self.create_subscription(Bool, "/cone/servo_state", self.cone_servo_callback_simulation, 10)
     
     def cone_servo_callback_real(self, msg):
         self.get_logger().debug(f"Cone servo state received: {msg.data}")
@@ -54,9 +58,13 @@ class PeripheralsNode(Node):
 
     def MLX90614_real_callback(self):
         self.get_logger().debug("MLX90614 real callback called")
+        
+        # Read temperatures from the sensor
         object_temp = self.MLX90614_sensor.get_obj_temp()
         ambient_temp = self.MLX90614_sensor.get_amb_temp()
         self.get_logger().debug(f"Object Temp: {object_temp}, Ambient Temp: {ambient_temp}")
+
+        # Publish the temperatures to their respective topics
         self.MLX90614_publisher_obj_temp.publish(Float32(data=object_temp))
         self.MLX90614_publisher_amb_temp.publish(Float32(data=ambient_temp))
 
@@ -67,6 +75,8 @@ class PeripheralsNode(Node):
 
         avr_temp = temp_image.mean() * 0.01 - 273.15 # Kelvin to Celsius conversion
         self.get_logger().debug(f"Average Object Temp from Simulation: {avr_temp}")
+
+        # Publish the average object temperature to the respective topic
         self.MLX90614_publisher_obj_temp.publish(Float32(data=avr_temp))
 
 

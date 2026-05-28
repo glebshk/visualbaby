@@ -25,7 +25,7 @@ windows:
         - detect:
             - source install/setup.bash
             - sleep 15
-            - ros2 launch aruco_detect sim_launch.py
+            - ros2 launch aruco_detect launch_sim.py
         - peripherals:
             - source install/setup.bash
             - sleep 15
@@ -42,7 +42,7 @@ windows:
         - gz-bridge:
             - source install/setup.bash
             - sleep 3
-            - ros2 run ros_gz_bridge parameter_bridge --ros-args -p config_file:=/workspaces/imav-videostream/simulation/gz-bridge.yaml
+            - ros2 run ros_gz_bridge parameter_bridge --ros-args -p config_file:=/workspaces/IMAV/simulation/gz-bridge.yaml
         
         - moving-landing:
             - source install/setup.bash
