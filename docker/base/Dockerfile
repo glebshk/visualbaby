@@ -5,7 +5,7 @@ ENV LANG=en_US.UTF-8
 ENV DEBIAN_FRONTEND=noninteractive
 
 # ------------------------------------------------------------
-# 1. Grundsystem vorbereiten
+# 1. Installation of Basic Tools
 # ------------------------------------------------------------
 WORKDIR /app
 
@@ -17,7 +17,7 @@ RUN apt-get update && \
     jq -r '.apt[]' packages.json | \
     xargs apt-get install -y
 
-# Locale setzen (wichtig für ROS 2 Tools)
+# Set locales and timezone
 RUN apt-get update && apt-get install -y locales && \
     sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && \
     locale-gen && \
@@ -25,7 +25,7 @@ RUN apt-get update && apt-get install -y locales && \
 
 
 # ------------------------------------------------------------
-# 2. ROS 2 Paketquellen hinzufügen
+# 2. Add ROS 2 and Gazebo Repositories
 # ------------------------------------------------------------
 RUN curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
     -o /usr/share/keyrings/ros-archive-keyring.gpg
@@ -47,15 +47,15 @@ COPY /docker/base/pip-requirements.txt /app/pip-requirements.txt
 RUN pip install -r pip-requirements.txt
 
 # Install Realsense SDK
-# Abhängigkeiten installieren
+
 WORKDIR /app/realsense
 RUN apt-get update 
 
-# Realsense hohlen
+# Clone the repository
 RUN git clone https://github.com/IntelRealSense/librealsense.git
 WORKDIR /app/realsense/librealsense
 
-# Udev-Regeln anlegen
+# Setup udev rules
 RUN cp config/99-realsense-libusb.rules /etc/udev/rules.d/
 
 # Build-Konfiguration
@@ -72,20 +72,20 @@ RUN cmake .. \
 
 
 # ------------------------------------------------------------
-# 4. Arbeitsverzeichnis anlegen und Quellcode kopieren
+# 4. Setup ROS 2 workspace
 # ------------------------------------------------------------
-WORKDIR /workspaces/imav-videostream/
-COPY /src/ /workspaces/imav-videostream/src/
-RUN git config --global --add safe.directory /workspaces/imav-videostream/build/camera_node/_deps/grabthecam-src
+WORKDIR /workspaces/IMAV/
+COPY /src/ /workspaces/IMAV/src/
+RUN git config --global --add safe.directory /workspaces/IMAV/build/camera_node/_deps/grabthecam-src
 
 
 # ------------------------------------------------------------
-# 4. ROS Umgebung automatisch laden
+# 4. Source ROS 2 and build workspace
 # ------------------------------------------------------------
 SHELL ["/bin/bash", "-c"]
 RUN echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc
 
-WORKDIR /workspaces/imav-videostream/
+WORKDIR /workspaces/IMAV/
 
 CMD ["/bin/bash"]
 

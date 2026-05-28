@@ -2,7 +2,7 @@ version: "3.8"
 
 services:
   imav:
-    image: ghcr.io/aachen-drone-development-initiative/imav-videostream/imav_video:latest
+    image: ghcr.io/aachen-drone-development-initiative/imav/drone:latest
     container_name: imav
     tty: true
     stdin_open: true
@@ -20,7 +20,7 @@ services:
       - /dev/ttyAMA0:/dev/ttyAMA0
 
   imav-test:
-    image: ghcr.io/aachen-drone-development-initiative/imav-videostream/imav-drone:test
+    image: ghcr.io/aachen-drone-development-initiative/imav/drone:test
     container_name: imav-test
     tty: true
     stdin_open: true

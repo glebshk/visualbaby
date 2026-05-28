@@ -1,4 +1,4 @@
-FROM ghcr.io/aachen-drone-development-initiative/imav-videostream/imav:latest
+FROM ghcr.io/aachen-drone-development-initiative/imav/base:latest
 
 ENV DEBIAN_FRONTEND=noninteractive
 

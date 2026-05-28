@@ -1,5 +1,5 @@
-# IMAV-videostream
-IMAV 2026 Base Repo 
+# IMAV
+IMAV Repo
 
 # Preparation
 ## Docker Images
@@ -16,11 +16,11 @@ echo TOKEN_HERE | docker login ghcr.io -u YOUR_GITHUB_USERNAME --password-stdin
 ### Pull Docker image
 For the drone 
 ```
-docker pull ghcr.io/aachen-drone-development-initiative/imav-videostream/imav-drone:latest
+docker pull ghcr.io/aachen-drone-development-initiative/imav/drone:latest
 ```
 For developement
 ```
-docker pull ghcr.io/aachen-drone-development-initiative/imav-videostream/imav-dev:latest
+docker pull ghcr.io/aachen-drone-development-initiative/imav/dev:latest
 ```
 
 # Simulation Docker
@@ -31,13 +31,13 @@ docker pull ghcr.io/aachen-drone-development-initiative/imav-videostream/imav-de
 ### Download dev docker
 First Download the Docker Image
 ```
-docker pull ghcr.io/aachen-drone-development-initiative/imav-videostream/imav-dev:latest
+docker pull ghcr.io/aachen-drone-development-initiative/imav/dev:latest
 ```
 
 ## Start Docker Container
 Open the Docker image with the Container Extension with the setup file "devcontainer.json".
 
-There are different Cofigurations for ubuntu24.04, windows and the Imav PC
+There are different Cofigurations for ubuntu, windows and the Imav PC
 
 
 ## Start Simulation
@@ -54,7 +54,7 @@ If you changed something in the Code then run the setup script
 ### Run Simulation
 Run the startup Script of the simulation
 ```
-./scripts/lauch-sim-x500-indoor.sh
+./scripts/launch-sim-x500-indoor.sh
 ```
 > [!NOTE]
 > If the the drone is not start px4 has to be build. If the build is finished restart the simulation with the command then it will work
@@ -102,7 +102,7 @@ sudo sysctl -p /etc/sysctl.d/99-disable-ipv6.conf
 ### Pull Docker
 For the drone 
 ```
-docker pull ghcr.io/aachen-drone-development-initiative/imav-videostream/imav-drone:latest
+docker pull ghcr.io/aachen-drone-development-initiative/imav/drone:latest
 ```
 ## Start of docker
 ### IMAV Docker Setup

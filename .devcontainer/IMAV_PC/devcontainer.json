@@ -1,6 +1,6 @@
 {
     "name": "IMAV PC Devcontainer",
-    "image": "ghcr.io/aachen-drone-development-initiative/imav-videostream/imav-dev:latest",
+    "image": "ghcr.io/aachen-drone-development-initiative/imav/dev:latest",
     "runArgs": [
         "--shm-size=512m",
         "--device=/dev/dri",

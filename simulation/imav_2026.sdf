@@ -232,7 +232,7 @@
         <visual name="visual">
         <geometry>
             <mesh>
-            <uri>file:///workspaces/imav-videostream/simulation/obstacles/Aruco_id0.dae</uri>
+            <uri>model://obstacles/meshes/Aruco_id0.dae</uri>
             </mesh>
         </geometry>
         </visual>
@@ -240,7 +240,7 @@
         <collision name="collision">
         <geometry>
             <mesh>
-            <uri>file:///workspaces/imav-videostream/simulation/obstacles/Aruco_id0.dae</uri>
+            <uri>model://obstacles/meshes/Aruco_id0.dae</uri>
             </mesh>
         </geometry>
         </collision>
@@ -257,7 +257,7 @@
         <visual name="visual">
         <geometry>
             <mesh>
-            <uri>file:///workspaces/imav-videostream/simulation/obstacles/M1-Windows.dae</uri>
+            <uri>model://obstacles/meshes/M1-Windows.dae</uri>
             </mesh>
         </geometry>
         </visual>
@@ -265,7 +265,7 @@
         <collision name="collision">
         <geometry>
             <mesh>
-            <uri>file:///workspaces/imav-videostream/simulation/obstacles/M1-Windows.dae</uri>
+            <uri>model://obstacles/meshes/M1-Windows.dae</uri>
             </mesh>
         </geometry>
         </collision>
@@ -281,7 +281,7 @@
         <visual name="visual">
         <geometry>
             <mesh>
-            <uri>file:///workspaces/imav-videostream/simulation/obstacles/M1-Bar_1980mm.dae</uri>
+            <uri>model://obstacles/meshes/M1-Bar_1980mm.dae</uri>
             </mesh>
         </geometry>
         </visual>
@@ -289,7 +289,7 @@
         <collision name="collision">
         <geometry>
             <mesh>
-            <uri>file:///workspaces/imav-videostream/simulation/obstacles/M1-Bar_1980mm.dae</uri>
+            <uri>model://obstacles/meshes/M1-Bar_1980mm.dae</uri>
             </mesh>
         </geometry>
         </collision>
@@ -306,7 +306,7 @@
         <visual name="visual">
         <geometry>
             <mesh>
-            <uri>file:///workspaces/imav-videostream/simulation/obstacles/M1-Bar_blue_400mm.dae</uri>
+            <uri>model://obstacles/meshes/M1-Bar_blue_400mm.dae</uri>
             </mesh>
         </geometry>
         </visual>
@@ -314,7 +314,7 @@
         <collision name="collision">
         <geometry>
             <mesh>
-            <uri>file:///workspaces/imav-videostream/simulation/obstacles/M1-Bar_blue_400mm.dae</uri>
+            <uri>model://obstacles/meshes/M1-Bar_blue_400mm.dae</uri>
             </mesh>
         </geometry>
         </collision>
@@ -330,7 +330,7 @@
         <visual name="visual">
         <geometry>
             <mesh>
-            <uri>file:///workspaces/imav-videostream/simulation/obstacles/M1-Bar_blue_400mm.dae</uri>
+            <uri>model://obstacles/meshes/M1-Bar_blue_400mm.dae</uri>
             </mesh>
         </geometry>
         </visual>
@@ -338,7 +338,7 @@
         <collision name="collision">
         <geometry>
             <mesh>
-            <uri>file:///workspaces/imav-videostream/simulation/obstacles/M1-Bar_blue_400mm.dae</uri>
+            <uri>model://obstacles/meshes/M1-Bar_blue_400mm.dae</uri>
             </mesh>
         </geometry>
         </collision>
@@ -354,7 +354,7 @@
         <visual name="visual">
         <geometry>
             <mesh>
-            <uri>file:///workspaces/imav-videostream/simulation/obstacles/M1-Tubes.dae</uri>
+            <uri>model://obstacles/meshes/M1-Tubes.dae</uri>
             </mesh>
         </geometry>
         </visual>
@@ -362,7 +362,7 @@
         <collision name="collision">
         <geometry>
             <mesh>
-            <uri>file:///workspaces/imav-videostream/simulation/obstacles/M1-Tubes.dae</uri>
+            <uri>model://obstacles/meshes/M1-Tubes.dae</uri>
             </mesh>
         </geometry>
         </collision>
@@ -378,7 +378,7 @@
         <visual name="visual">
         <geometry>
             <mesh>
-            <uri>file:///workspaces/imav-videostream/simulation/obstacles/M1-Windows.dae</uri>
+            <uri>model://obstacles/meshes/M1-Windows.dae</uri>
             </mesh>
         </geometry>
         </visual>
@@ -386,7 +386,7 @@
         <collision name="collision">
         <geometry>
             <mesh>
-            <uri>file:///workspaces/imav-videostream/simulation/obstacles/M1-Windows.dae</uri>
+            <uri>model://obstacles/meshes/M1-Windows.dae</uri>
             </mesh>
         </geometry>
         </collision>
@@ -403,7 +403,7 @@
         <visual name="visual">
         <geometry>
             <mesh>
-            <uri>file:///workspaces/imav-videostream/simulation/obstacles/M2-Room.dae</uri>
+            <uri>model://obstacles/meshes/M2-Room.dae</uri>
             </mesh>
         </geometry>
         </visual>
@@ -411,7 +411,7 @@
         <collision name="collision">
         <geometry>
             <mesh>
-            <uri>file:///workspaces/imav-videostream/simulation/obstacles/M2-Room.dae</uri>
+            <uri>model://obstacles/meshes/M2-Room.dae</uri>
             </mesh>
         </geometry>
         </collision>
@@ -427,7 +427,7 @@
         <visual name="visual">
         <geometry>
             <mesh>
-            <uri>file:///workspaces/imav-videostream/simulation/obstacles/M3-Box.dae</uri>
+            <uri>model://obstacles/meshes/M3-Box.dae</uri>
             </mesh>
         </geometry>
         </visual>
@@ -435,7 +435,7 @@
         <collision name="collision">
         <geometry>
             <mesh>
-            <uri>file:///workspaces/imav-videostream/simulation/obstacles/M3-Box.dae</uri>
+            <uri>model://obstacles/meshes/M3-Box.dae</uri>
             </mesh>
         </geometry>
         </collision>
@@ -451,7 +451,7 @@
         <visual name="visual">
         <geometry>
             <mesh>
-            <uri>file:///workspaces/imav-videostream/simulation/obstacles/M3-Box.dae</uri>
+            <uri>model://obstacles/meshes/M3-Box.dae</uri>
             </mesh>
         </geometry>
         </visual>
@@ -459,7 +459,7 @@
         <collision name="collision">
         <geometry>
             <mesh>
-            <uri>file:///workspaces/imav-videostream/simulation/obstacles/M3-Box.dae</uri>
+            <uri>model://obstacles/meshes/M3-Box.dae</uri>
             </mesh>
         </geometry>
         </collision>
@@ -475,7 +475,7 @@
         <visual name="visual">
         <geometry>
             <mesh>
-            <uri>file:///workspaces/imav-videostream/simulation/obstacles/M3-Box.dae</uri>
+            <uri>model://obstacles/meshes/M3-Box.dae</uri>
             </mesh>
         </geometry>
         </visual>
@@ -483,7 +483,7 @@
         <collision name="collision">
         <geometry>
             <mesh>
-            <uri>file:///workspaces/imav-videostream/simulation/obstacles/M3-Box.dae</uri>
+            <uri>model://obstacles/meshes/M3-Box.dae</uri>
             </mesh>
         </geometry>
         </collision>
@@ -499,7 +499,7 @@
         <visual name="visual">
         <geometry>
             <mesh>
-            <uri>file:///workspaces/imav-videostream/simulation/obstacles/M4-Rad.dae</uri>
+            <uri>model://obstacles/meshes/M4-Rad.dae</uri>
             </mesh>
         </geometry>
         </visual>
@@ -507,7 +507,7 @@
         <collision name="collision">
         <geometry>
             <mesh>
-            <uri>file:///workspaces/imav-videostream/simulation/obstacles/M4-Rad.dae</uri>
+            <uri>model://obstacles/meshes/M4-Rad.dae</uri>
             </mesh>
         </geometry>
         </collision>
@@ -523,7 +523,7 @@
         <visual name="visual">
         <geometry>
             <mesh>
-            <uri>file:///workspaces/imav-videostream/simulation/obstacles/M4-Ring.dae</uri>
+            <uri>model://obstacles/meshes/M4-Ring.dae</uri>
             </mesh>
         </geometry>
         </visual>
@@ -531,7 +531,7 @@
         <collision name="collision">
         <geometry>
             <mesh>
-            <uri>file:///workspaces/imav-videostream/simulation/obstacles/M4-Ring.dae</uri>
+            <uri>model://obstacles/meshes/M4-Ring.dae</uri>
             </mesh>
         </geometry>
         </collision>

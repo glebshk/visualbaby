@@ -29,7 +29,7 @@
     <visual name="visual">
     <geometry>
       <mesh>
-      <uri>file:///workspaces/imav-videostream/simulation/obstacles/Aruco_id1.dae</uri>
+      <uri>model://obstacles/meshes/Aruco_id1.dae</uri>
       </mesh>
     </geometry>
   </visual>
@@ -37,7 +37,7 @@
   <collision name="collision">
     <geometry>
       <mesh>
-      <uri>file:///workspaces/imav-videostream/simulation/obstacles/Aruco_id1.dae</uri>
+      <uri>model://obstacles/meshes/Aruco_id1.dae</uri>
       </mesh>
     </geometry>
   </collision>

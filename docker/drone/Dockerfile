@@ -1,11 +1,11 @@
-FROM ghcr.io/aachen-drone-development-initiative/imav-videostream/imav:latest
+FROM ghcr.io/aachen-drone-development-initiative/imav/base:latest
 
 
 # COPY Code
-WORKDIR /workspaces/imav-videostream/
-COPY /scripts/ /workspaces/imav-videostream/scripts/
-COPY /src/ /workspaces/imav-videostream/src/
-COPY /tmux/ /workspaces/imav-videostream/tmux/
+WORKDIR /workspaces/IMAV/
+COPY /scripts/ /workspaces/IMAV/scripts/
+COPY /src/ /workspaces/IMAV/src/
+COPY /tmux/ /workspaces/IMAV/tmux/
 
 #Run start script
 RUN chmod +x scripts/
