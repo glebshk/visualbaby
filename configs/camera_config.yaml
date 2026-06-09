@@ -1,0 +1,15 @@
+rgb:
+  width: 1280
+  height: 720
+  channels: 3
+  source: down_facing
+  illumination: drone_bright_light
+
+depth:
+  width: 1280
+  height: 720
+  format: R16
+  aligned_with_rgb: true
+
+processing:
+  location: basestation
