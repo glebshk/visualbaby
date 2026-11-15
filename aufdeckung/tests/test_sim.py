@@ -89,3 +89,10 @@ def test_random_layouts_meet_acceptance_criteria(preset: str, cfg: Config) -> No
     for seed in (100, 101):
         m = run_mission(generate(preset, seed), cfg).metrics
         assert not Criteria().failures(m, cfg), (preset, seed, m)
+
+
+@pytest.mark.slow
+def test_regression_urban_ring_5_returns_home(cfg: Config) -> None:
+    """The lidar closed the map around the drone; it must still find its way home."""
+    m = run_mission(generate("urban_ring", 5), cfg).metrics
+    assert m["landed_home"] and m["collisions"] == 0

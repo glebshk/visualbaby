@@ -67,6 +67,7 @@ class MissionController:
     coverage: CoverageMap = field(init=False)
     need: BoolArray = field(init=False)
     fm: FlightMap = field(init=False)
+    rescue_fm: FlightMap = field(init=False)
     phase: Phase = field(init=False, default=Phase.TAKEOFF)
     route: list[Waypoint] = field(init=False, default_factory=list)
     events: list[MissionEvent] = field(init=False, default_factory=list)
@@ -82,6 +83,13 @@ class MissionController:
             raise ValueError("explore=False needs a prior map")
         self.coverage = CoverageMap(self.spec)
         self.need = cage_mask(self.spec, self.cfg.arena)
+        fl = self.cfg.flight
+        # Reduced margins, only for getting out when the map closes in around the drone.
+        self._rescue_cfg = self.cfg.with_overrides({"flight": {
+            "clearance": fl.drone_radius + 0.3,
+            "vertical_clearance": min(fl.vertical_clearance, 0.75),
+            "min_alt": min(fl.min_alt, fl.cruise_alt),
+        }})
         self.hopeless = np.zeros(self.spec.shape, dtype=bool)
         self._rain: tuple[RainZone, ...] = ()
         self._dirty = True
@@ -182,7 +190,8 @@ class MissionController:
         need = self.need & ~self.coverage.covered & ~self.hopeless
         try:
             axes = (self._axis,) if self._axis else ("x", "y")
-            plan = plan_coverage(p, self.hm, self.fm, need, self.cfg, axes=axes)
+            plan = plan_coverage(p, self.hm, self.fm, need, self.cfg, axes=axes,
+                                 rescue=self.rescue_fm, anchor=self.start)
             if plan.axis in ("x", "y"):
                 self._axis = plan.axis
         except PlanningError as exc:
@@ -210,7 +219,7 @@ class MissionController:
 
     def _start_return(self, t: float, p: tuple[float, float, float]) -> None:
         try:
-            wps = plan_transit(p, self.start, self.fm)
+            wps = plan_transit(p, self.start, self.fm, rescue=self.rescue_fm)
         except PlanningError as exc:
             self._log(t, "return_failed", str(exc))
             self.route = []
@@ -257,8 +266,10 @@ class MissionController:
         return bool((blocked & self.need & ~self.coverage.covered & ~self.hopeless).any())
 
     def _rebuild(self) -> None:
-        self.fm = build_flight_map(self.hm, self.cfg, self._rain,
-                                   assume_unknown_below_cruise=self.prior is None)
+        unknown = self.prior is None
+        self.fm = build_flight_map(self.hm, self.cfg, self._rain, assume_unknown_below_cruise=unknown)
+        self.rescue_fm = build_flight_map(self.hm, self._rescue_cfg, self._rain,
+                                          assume_unknown_below_cruise=unknown)
 
     def _set_phase(self, t: float, phase: Phase) -> None:
         if phase != self.phase:

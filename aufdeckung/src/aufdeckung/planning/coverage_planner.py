@@ -75,10 +75,16 @@ def plan_coverage(
     need: BoolArray,
     cfg: Config,
     axes: tuple[str, ...] = ("x", "y"),
+    rescue: FlightMap | None = None,
+    anchor: tuple[float, float] | None = None,
 ) -> CoveragePlan:
-    """Plan a route from ``start`` that images as many ``need`` cells as possible."""
+    """Plan a route from ``start`` that images as many ``need`` cells as possible.
+
+    ``rescue`` is a flight map with reduced clearances used only to get back into the
+    area connected to ``anchor`` (home) when the map has closed in around the drone.
+    """
     spec = fm.spec
-    entry_pts, entry = _entry(start, fm)
+    entry_pts, entry = _entry(start, fm, rescue, anchor)
     reach = reachable(fm.flyable, entry)
     if not reach.any():
         raise PlanningError("no flyable cell reachable from the current position")
@@ -113,14 +119,17 @@ def plan_coverage(
                         estimate_time(waypoints, start, cfg.flight), remaining & ~seeable)
 
 
-def plan_transit(start: tuple[float, float, float], goal: tuple[float, float], fm: FlightMap
-                 ) -> list[Waypoint]:
+def plan_transit(start: tuple[float, float, float], goal: tuple[float, float], fm: FlightMap,
+                 rescue: FlightMap | None = None) -> list[Waypoint]:
     """Safe path to ``goal`` (x, y) at transit altitude, ending above the goal."""
-    entry_pts, entry = _entry(start, fm)
+    entry_pts, entry = _entry(start, fm, rescue, goal)
     goal_cell = fm.cell(*goal)
     free = fm.flyable.copy()
     free[goal_cell] = free[goal_cell] or bool(fm.hard_ok[goal_cell])
     cells = astar(free, entry, goal_cell)
+    if cells is None and rescue is not None and not entry_pts:
+        entry_pts, entry = _rescue(start, fm, rescue, goal)
+        cells = astar(free, entry, goal_cell)
     if cells is None:
         raise PlanningError(f"goal {goal} is not reachable")
     xy = smooth(fm, [fm.spec.center(*c) for c in cells])
@@ -134,12 +143,15 @@ def plan_transit(start: tuple[float, float, float], goal: tuple[float, float], f
 # --------------------------------------------------------------------------- steps
 
 
-def _entry(start: tuple[float, float, float], fm: FlightMap) -> tuple[list[_Pt], Cell]:
+def _entry(start: tuple[float, float, float], fm: FlightMap, rescue: FlightMap | None = None,
+           anchor: tuple[float, float] | None = None) -> tuple[list[_Pt], Cell]:
     """Points needed to reach a flyable cell (escaping a rain zone if necessary) and that cell."""
     cell = fm.cell(start[0], start[1])
     if fm.flyable[cell]:
         return [], cell
     hard = fm.hard_ok
+    if not hard[cell] and rescue is not None and anchor is not None:
+        return _rescue(start, fm, rescue, anchor)
     if not hard[cell]:
         gx, gy = fm.spec.centers()
         d = np.where(hard, np.hypot(gx - start[0], gy - start[1]), np.inf)
@@ -163,6 +175,36 @@ def _entry(start: tuple[float, float, float], fm: FlightMap) -> tuple[list[_Pt],
             xy = smooth(fm, [fm.spec.center(*c) for c in path], soft=True)
             return [(x, y, fm.transit_alt(*fm.cell(x, y)), "escape") for x, y in xy], target
     raise PlanningError("trapped: no escape path from rain zone")
+
+
+def _rescue(start: tuple[float, float, float], fm: FlightMap, rescue: FlightMap,
+            anchor: tuple[float, float]) -> tuple[list[_Pt], Cell]:
+    """Path on the reduced-clearance map into the flyable area that is connected to ``anchor``."""
+    anchor_cell = fm.cell(*anchor)
+    home_area = reachable(fm.flyable if fm.flyable[anchor_cell] else fm.hard_ok, anchor_cell)
+    if not home_area.any():
+        raise PlanningError("home area is not flyable")
+    cell = rescue.cell(start[0], start[1])
+    gx, gy = fm.spec.centers()
+    if not rescue.hard_ok[cell]:
+        d0 = np.where(rescue.hard_ok, np.hypot(gx - start[0], gy - start[1]), np.inf)
+        if not np.isfinite(d0).any():
+            raise PlanningError("no flyable cell in the rescue map")
+        idx = int(np.argmin(d0))
+        cell = (idx // fm.spec.nx, idx % fm.spec.nx)
+    targets = home_area & reachable(rescue.hard_ok, cell)
+    d = np.where(targets, np.hypot(gx - start[0], gy - start[1]), np.inf)
+    for idx in np.argsort(d, axis=None)[:5]:
+        if not np.isfinite(d.flat[idx]):
+            break
+        target = (int(idx // fm.spec.nx), int(idx % fm.spec.nx))
+        path = astar(rescue.hard_ok, cell, target)
+        if path is not None:
+            xy = smooth(rescue, [rescue.spec.center(*c) for c in path], soft=True)
+            pts: list[_Pt] = [(x, y, max(rescue.transit_alt(*rescue.cell(x, y)), start[2]), "escape")
+                              for x, y in xy]
+            return pts, target
+    raise PlanningError("trapped: no rescue path back to the home area")
 
 
 def _row_segments(axis: str, fm: FlightMap, hm: HeightMap, reach: BoolArray, need: BoolArray,

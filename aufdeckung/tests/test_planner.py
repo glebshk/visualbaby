@@ -120,3 +120,37 @@ def test_estimate_time(cfg: Config) -> None:
     wps = [Waypoint(0.0, 0.0, 8.0), Waypoint(30.0, 0.0, 8.0)]
     t = estimate_time(wps, (0.0, 0.0, 0.0), cfg.flight)
     assert t > 30.0 / cfg.flight.max_speed + 8.0 / cfg.flight.max_climb
+
+
+def _rescue_map(cfg: Config, spec: GridSpec, shapes):  # type: ignore[no-untyped-def]
+    relaxed = cfg.with_overrides({"flight": {"clearance": 0.65, "vertical_clearance": 0.75}})
+    return build_flight_map(HeightMap.from_prior(spec, cfg.arena, shapes), relaxed, (),
+                            assume_unknown_below_cruise=False)
+
+
+def test_rescue_out_of_closed_pocket(cfg: Config, spec: GridSpec) -> None:
+    # Ceiling-high walls with a 3 m gap: closed for 1.5 m clearance, open for the rescue map.
+    pocket = [Box(0.0, 4.25, 12.0, 1.0, 13.0, name="n"), Box(-4.0, -4.25, 5.0, 1.0, 13.0, name="sw"),
+              Box(4.0, -4.25, 5.0, 1.0, 13.0, name="se"), Box(5.75, 0.0, 1.0, 9.5, 13.0, name="e"),
+              Box(-5.75, 0.0, 1.0, 9.5, 13.0, name="w")]
+    _, fm = _prior(cfg, spec, pocket)
+    rescue = _rescue_map(cfg, spec, pocket)
+    start = (0.0, 0.0, 8.0)
+    with pytest.raises(PlanningError):
+        plan_transit(start, (0.0, -18.0), fm)
+    wps = plan_transit(start, (0.0, -18.0), fm, rescue=rescue)
+    assert (wps[-1].x, wps[-1].y) == (0.0, -18.0)
+    assert any(w.kind == "escape" for w in wps)
+    assert_route_safe([w for w in wps if w.kind != "escape"],
+                      next(w for w in reversed(wps) if w.kind == "escape").xyz, fm, cfg)
+
+
+def test_rescue_when_drone_is_inside_safety_margin(cfg: Config, spec: GridSpec) -> None:
+    wall = [Box(0.0, 0.0, 2.0, 10.0, 13.0, name="tower")]
+    hm, fm = _prior(cfg, spec, wall)
+    start = (1.8, 0.0, 8.0)  # 0.8 m from the wall: inside the 1.5 m margin
+    assert not fm.hard_ok[fm.cell(1.8, 0.0)]
+    plan = plan_coverage(start, hm, fm, cage_mask(spec, cfg.arena), cfg,
+                         rescue=_rescue_map(cfg, spec, wall), anchor=(0.0, -18.0))
+    assert plan.waypoints[0].kind == "escape"
+    assert plan.predicted.any()
