@@ -29,7 +29,17 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(git push origin aufdeckungSim)",
-      "Bash(git push -u origin aufdeckungSim)"
+      "Bash(git push -u origin aufdeckungSim)",
+      "Bash(pip install:*)",
+      "Bash(python -m pip install:*)",
+      "Bash(ruff:*)",
+      "Bash(mypy:*)",
+      "Bash(python -m aufdeckung:*)",
+      "Bash(python3 -m aufdeckung:*)",
+      "Bash(git rm:*)",
+      "Bash(git mv:*)",
+      "Bash(python3 -m ruff:*)",
+      "Bash(python3 -m mypy:*)"
     ],
     "deny": [
       "Bash(rm -rf:*)",

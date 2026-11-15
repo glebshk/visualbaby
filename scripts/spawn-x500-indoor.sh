@@ -1,1 +1,0 @@
-gz service -s /world/imav2026/create --reqtype gz.msgs.EntityFactory --reptype gz.msgs.Boolean --timeout 1000 --req 'sdf_filename: "simulation/x500_flow/model.sdf", name: "x500", pose: {position: {x: 1.5, y: 1, z: 0.3}}'
