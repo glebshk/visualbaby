@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- x500 for the aufdeckung mission. Sensor settings mirror aufdeckung.config:
+     CameraConfig (OakD-Lite IMX214, nadir) and LidarConfig (360 x 16 beams, -60..+10 deg, 30 m). -->
+<sdf version="1.9">
+  <model name="x500_aufdeckung">
+    <self_collide>false</self_collide>
+
+    <include merge="true">
+      <uri>x500</uri>
+    </include>
+
+    <include merge="true">
+      <uri>model://OakD-Lite_down</uri>
+      <pose relative_to="base_link">0 0 -0.1 0 1.57 0</pose>
+    </include>
+
+    <joint name="camera_down_joint" type="fixed">
+      <parent>base_link</parent>
+      <child>realsense_down_link</child>
+      <pose relative_to="base_link">0 0 -0.1 0 1.57 0</pose>
+    </joint>
+
+    <link name="lidar_link">
+      <pose relative_to="base_link">0 0 0.12 0 0 0</pose>
+      <inertial>
+        <mass>0.05</mass>
+        <inertia>
+          <ixx>0.00001</ixx>
+          <iyy>0.00001</iyy>
+          <izz>0.00001</izz>
+        </inertia>
+      </inertial>
+      <visual name="lidar_visual">
+        <geometry>
+          <cylinder>
+            <radius>0.04</radius>
+            <length>0.06</length>
+          </cylinder>
+        </geometry>
+      </visual>
+      <sensor name="lidar_3d" type="gpu_lidar">
+        <gz_frame_id>lidar_link</gz_frame_id>
+        <topic>lidar</topic>
+        <update_rate>10</update_rate>
+        <ray>
+          <scan>
+            <horizontal>
+              <samples>360</samples>
+              <resolution>1</resolution>
+              <min_angle>-3.14159</min_angle>
+              <max_angle>3.14159</max_angle>
+            </horizontal>
+            <vertical>
+              <samples>16</samples>
+              <resolution>1</resolution>
+              <min_angle>-1.0472</min_angle>
+              <max_angle>0.174533</max_angle>
+            </vertical>
+          </scan>
+          <range>
+            <min>0.2</min>
+            <max>30.0</max>
+            <resolution>0.01</resolution>
+          </range>
+          <noise>
+            <type>gaussian</type>
+            <mean>0.0</mean>
+            <stddev>0.02</stddev>
+          </noise>
+        </ray>
+        <always_on>1</always_on>
+        <visualize>false</visualize>
+      </sensor>
+    </link>
+
+    <joint name="lidar_joint" type="fixed">
+      <parent>base_link</parent>
+      <child>lidar_link</child>
+    </joint>
+  </model>
+</sdf>

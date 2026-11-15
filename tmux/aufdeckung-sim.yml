@@ -1,0 +1,27 @@
+# Started by scripts/launch-sim-aufdeckung.sh (it exports the AUFDECKUNG_* and START_* variables).
+name: aufdeckung-sim
+
+windows:
+  - simulation:
+      layout: even-vertical
+      panes:
+        - gazebo:
+            - source install/setup.bash
+            - ./scripts/launch-gazebo-default.sh $AUFDECKUNG_WORLD
+        - px4:
+            - source install/setup.bash
+            - sleep 10
+            - ./scripts/spawn-x500-aufdeckung.sh $START_X $START_Y
+            - sleep 3
+            - ./scripts/launch-sitl-aufdeckung.sh
+  - ros2:
+      layout: even-vertical
+      panes:
+        - mission:
+            - source install/setup.bash
+            - sleep 30
+            - ros2 launch aufdeckung_ros aufdeckung_sim.launch.py home_x:=$START_X home_y:=$START_Y
+        - monitor:
+            - source install/setup.bash
+            - sleep 35
+            - ros2 topic echo /aufdeckung/phase
