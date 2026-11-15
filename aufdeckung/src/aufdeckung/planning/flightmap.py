@@ -48,15 +48,15 @@ class FlightMap:
     def segment_profile(self, a: tuple[float, float], b: tuple[float, float], soft: bool = False
                         ) -> tuple[bool, float]:
         """(all cells along a->b flyable, max required altitude along a->b)."""
-        n = max(int(math.ceil(math.hypot(b[0] - a[0], b[1] - a[1]) / (self.spec.res / 2))), 1)
+        n = max(math.ceil(math.hypot(b[0] - a[0], b[1] - a[1]) / (self.spec.res / 2)), 1)
         f = np.arange(n + 1) / n
         iy = np.floor((a[1] + (b[1] - a[1]) * f - self.spec.ymin) / self.spec.res).astype(np.int64)
         ix = np.floor((a[0] + (b[0] - a[0]) * f - self.spec.xmin) / self.spec.res).astype(np.int64)
-        if iy.min() < 0 or ix.min() < 0 or iy.max() >= self.spec.ny or ix.max() >= self.spec.nx:
+        if np.min(iy) < 0 or np.min(ix) < 0 or np.max(iy) >= self.spec.ny or np.max(ix) >= self.spec.nx:
             return False, math.inf
         mask = self.hard_ok if soft else self.flyable
         ok = bool(mask[iy, ix].all())
-        return ok, float(self.required_alt[iy, ix].max())
+        return ok, float(np.max(self.required_alt[iy, ix]))
 
 
 ALT_STEP = 0.25

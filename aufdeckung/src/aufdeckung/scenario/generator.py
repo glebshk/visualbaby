@@ -130,6 +130,11 @@ class _Layout:
 # --------------------------------------------------------------------------- presets
 
 
+def _fixed(p: tuple[float, float]) -> Callable[[], tuple[float, float]]:
+    """Placement callback that always proposes the same point."""
+    return lambda: p
+
+
 def _height(rng: np.random.Generator, arena: ArenaConfig, p_tall: float) -> float:
     if rng.uniform() < p_tall:
         return float(rng.choice([rng.uniform(9.0, 12.0), arena.height]))
@@ -156,7 +161,7 @@ def _urban_ring(lay: _Layout) -> None:
         phi = offset + 2 * math.pi * i / n + rng.uniform(-0.15, 0.15)
         rho = rng.uniform(13.0, 16.5)
         lay.building(rng.uniform(4, 7), rng.uniform(4, 7), _height(rng, lay.arena, 0.45), gap=2.5,
-                     yaw=phi, point=lambda rho=rho, phi=phi: (rho * math.cos(phi), rho * math.sin(phi)))
+                     yaw=phi, point=_fixed((rho * math.cos(phi), rho * math.sin(phi))))
     lay.feature(rng.uniform(-2, 2), rng.uniform(-2, 2))
     for _ in range(int(rng.integers(4, 8))):
         lay.tree(point=lambda: lay.random_point(1.5, 11.0))
@@ -203,21 +208,21 @@ def _street(lay: _Layout) -> None:
                 u = qu * (half_street + 1.0 + w / 2 + rng.uniform(0, 8))
                 v = qv * (half_street + 1.0 + d / 2 + rng.uniform(0, 8))
                 lay.building(w, d, _height(rng, lay.arena, 0.3), gap=2.5, yaw=yaw,
-                             point=lambda u=u, v=v: rot(u, v))
+                             point=_fixed(rot(u, v)))
     for _ in range(int(rng.integers(3, 8))):
         along = rng.uniform(-18, 18)
         side = rng.choice([-1.0, 1.0]) * (half_street - 1.2)
         horizontal = bool(rng.integers(2))
         u, v = (along, side) if horizontal else (side, along)
-        lay.vehicle(point=lambda u=u, v=v: rot(u, v), yaw=yaw if horizontal else yaw + math.pi / 2)
+        lay.vehicle(point=_fixed(rot(u, v)), yaw=yaw if horizontal else yaw + math.pi / 2)
     for _ in range(int(rng.integers(4, 9))):
         along = rng.uniform(-18, 18)
         side = rng.choice([-1.0, 1.0]) * (half_street + 0.5)
         u, v = (along, side) if rng.integers(2) else (side, along)
         if rng.uniform() < 0.5:
-            lay.pole(point=lambda u=u, v=v: rot(u, v))
+            lay.pole(point=_fixed(rot(u, v)))
         else:
-            lay.tree(point=lambda u=u, v=v: rot(u, v))
+            lay.tree(point=_fixed(rot(u, v)))
 
 
 def _mixed(lay: _Layout) -> None:
@@ -261,7 +266,7 @@ def _targets(lay: _Layout, n: int) -> list[Target]:
             if math.hypot(x - lay.start[0], y - lay.start[1]) < START_CLEAR_RADIUS:
                 continue
             size = 0.6 if cls == "special" else float(rng.uniform(0.3, 0.8))
-            targets.append(Target(round(x, 2), round(y, 2), cls=cls, name=f"{cls}_{i}", size=size))
+            targets.append(Target(_r(x, 2), _r(y, 2), cls=cls, name=f"{cls}_{i}", size=_r(size, 2)))
             break
     return targets
 
@@ -282,8 +287,8 @@ def _rain(lay: _Layout, n: int) -> list[RainZone]:
             if math.hypot(x - lay.start[0], y - lay.start[1]) < r + START_CLEAR_RADIUS + 1.0:
                 continue
             t_on = float(rng.uniform(20.0, 300.0))
-            zones.append(RainZone(round(x, 2), round(y, 2), round(r, 2), round(t_on, 1),
-                                  round(t_on + float(rng.uniform(60.0, 150.0)), 1)))
+            zones.append(RainZone(_r(x, 2), _r(y, 2), _r(r, 2), _r(t_on, 1),
+                                  _r(t_on + float(rng.uniform(60.0, 150.0)), 1)))
             break
     return zones
 
@@ -300,7 +305,7 @@ def generate(
         raise KeyError(f"unknown preset {preset!r}; choose from {sorted(PRESETS)}")
     arena = arena or ArenaConfig()
     rng = np.random.default_rng([seed, sorted(PRESETS).index(preset)])
-    start = (0.0, -(arena.diameter / 2 * math.cos(math.pi / arena.n_sides) - arena.net_margin - 2.5))
+    start = (0.0, -float(arena.diameter / 2 * math.cos(math.pi / arena.n_sides) - arena.net_margin - 2.5))
     lay = _Layout(arena=arena, rng=rng, start=start)
     PRESETS[preset](lay)
     targets = _targets(lay, int(rng.integers(n_targets[0], n_targets[1] + 1)))
@@ -320,9 +325,14 @@ def generate(
     return scenario
 
 
+def _r(v: float, nd: int = 3) -> float:
+    return round(float(v), nd)
+
+
 def _round_shape(s: Shape) -> Shape:
+    """Plain python floats, rounded, so scenarios serialise cleanly and compare exactly."""
     if isinstance(s, Box):
-        return Box(round(s.x, 3), round(s.y, 3), round(s.sx, 3), round(s.sy, 3), round(s.height, 3),
-                   yaw=round(s.yaw, 4), z0=round(s.z0, 3), kind=s.kind, name=s.name)
-    return Cylinder(round(s.x, 3), round(s.y, 3), round(s.radius, 3), round(s.height, 3),
-                    z0=round(s.z0, 3), kind=s.kind, name=s.name)
+        return Box(_r(s.x), _r(s.y), _r(s.sx), _r(s.sy), _r(s.height), yaw=_r(s.yaw, 4), z0=_r(s.z0),
+                   kind=s.kind, name=s.name)
+    return Cylinder(_r(s.x), _r(s.y), _r(s.radius), _r(s.height), z0=_r(s.z0), kind=s.kind,
+                    name=s.name)

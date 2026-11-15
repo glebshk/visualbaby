@@ -25,10 +25,10 @@ def visible_cells(
     """Indices (iy, ix) of surface cells inside the camera footprint with a clear line of sight."""
     x, y, z = float(pos[0]), float(pos[1]), float(pos[2])
     hx, hy = camera.half_extents(min(z, camera.max_detect_agl))
-    ix0 = max(int(math.floor((x - hx - spec.xmin) / spec.res)), 0)
-    ix1 = min(int(math.floor((x + hx - spec.xmin) / spec.res)), spec.nx - 1)
-    iy0 = max(int(math.floor((y - hy - spec.ymin) / spec.res)), 0)
-    iy1 = min(int(math.floor((y + hy - spec.ymin) / spec.res)), spec.ny - 1)
+    ix0 = max(math.floor((x - hx - spec.xmin) / spec.res), 0)
+    ix1 = min(math.floor((x + hx - spec.xmin) / spec.res), spec.nx - 1)
+    iy0 = max(math.floor((y - hy - spec.ymin) / spec.res), 0)
+    iy1 = min(math.floor((y + hy - spec.ymin) / spec.res), spec.ny - 1)
     empty = np.zeros(0, dtype=np.int64)
     if ix0 > ix1 or iy0 > iy1:
         return empty, empty
@@ -49,7 +49,7 @@ def visible_cells(
     if len(iy) == 0:
         return empty, empty
     dist_xy = np.hypot(cx - x, cy - y)
-    k = max(int(math.ceil(float(dist_xy.max()) / (spec.res / 2))), 1)
+    k = max(math.ceil(float(dist_xy.max()) / (spec.res / 2)), 1)
     f = (np.arange(1, k + 1) / (k + 1))[None, :]
     sx = x + (cx[:, None] - x) * f
     sy = y + (cy[:, None] - y) * f

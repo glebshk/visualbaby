@@ -50,7 +50,7 @@ class GridSpec:
         return gx, gy
 
     def index(self, x: float, y: float) -> tuple[int, int]:
-        return int(math.floor((y - self.ymin) / self.res)), int(math.floor((x - self.xmin) / self.res))
+        return math.floor((y - self.ymin) / self.res), math.floor((x - self.xmin) / self.res)
 
     def indices(self, x: FloatArray, y: FloatArray) -> tuple[IntArray, IntArray]:
         iy = np.floor((y - self.ymin) / self.res).astype(np.int64)
@@ -90,14 +90,14 @@ def rasterize(shapes: tuple[Shape, ...] | list[Shape], spec: GridSpec) -> FloatA
 
 
 def disk_offsets(radius_cells: float) -> list[tuple[int, int]]:
-    r = int(math.ceil(radius_cells))
+    r = math.ceil(radius_cells)
     return [(dy, dx) for dy in range(-r, r + 1) for dx in range(-r, r + 1)
             if dx * dx + dy * dy <= radius_cells * radius_cells + 1e-9]
 
 
 def max_filter_disk(values: FloatArray, radius_cells: float, fill: float = 0.0) -> FloatArray:
     """Maximum of ``values`` over a disk neighbourhood (cells outside the grid count as ``fill``)."""
-    r = int(math.ceil(radius_cells))
+    r = math.ceil(radius_cells)
     padded = np.pad(values, r, constant_values=fill)
     out = np.full(values.shape, -np.inf)
     ny, nx = values.shape

@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Union
 
 import numpy as np
 from numpy.typing import NDArray
@@ -70,7 +69,7 @@ class Cylinder:
         return self.radius
 
 
-Shape = Union[Box, Cylinder]
+Shape = Box | Cylinder
 
 
 # --------------------------------------------------------------------------- polygons
@@ -243,7 +242,9 @@ def _ray_cyl(origin: FloatArray, dirs: FloatArray, cyl: Cylinder) -> FloatArray:
     for zc in (cyl.z0, cyl.top):
         with np.errstate(divide="ignore", invalid="ignore"):
             t_cap = np.where(np.abs(dz) > _EPS, (zc - oz) / dz, np.inf)
-        cx, cy = ox + t_cap * dx, oy + t_cap * dy
-        cap_hit = (t_cap >= 0) & np.isfinite(t_cap) & (cx * cx + cy * cy <= cyl.radius**2)
+        finite = np.isfinite(t_cap)
+        t_safe = np.where(finite, t_cap, 0.0)
+        cx, cy = ox + t_safe * dx, oy + t_safe * dy
+        cap_hit = (t_cap >= 0) & finite & (cx * cx + cy * cy <= cyl.radius**2)
         result = np.where(cap_hit & (t_cap < result), t_cap, result)
     return result

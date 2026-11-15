@@ -12,32 +12,39 @@ from aufdeckung.geometry import Box, Cylinder, Shape
 from aufdeckung.scenario.model import RainZone, Scenario, ScenarioError, Target
 
 
+def _num(v: float) -> float:
+    return float(v)
+
+
 def scenario_to_dict(sc: Scenario) -> dict[str, Any]:
+    """Plain-python dict (YAML/JSON safe; numpy scalars are converted)."""
     obstacles: list[dict[str, Any]] = []
     for o in sc.obstacles:
         if isinstance(o, Box):
             obstacles.append(
-                {"type": "box", "x": o.x, "y": o.y, "sx": o.sx, "sy": o.sy, "height": o.height,
-                 "yaw": o.yaw, "z0": o.z0, "kind": o.kind, "name": o.name}
+                {"type": "box", "x": _num(o.x), "y": _num(o.y), "sx": _num(o.sx), "sy": _num(o.sy),
+                 "height": _num(o.height), "yaw": _num(o.yaw), "z0": _num(o.z0), "kind": o.kind,
+                 "name": o.name}
             )
         else:
             obstacles.append(
-                {"type": "cylinder", "x": o.x, "y": o.y, "radius": o.radius, "height": o.height,
-                 "z0": o.z0, "kind": o.kind, "name": o.name}
+                {"type": "cylinder", "x": _num(o.x), "y": _num(o.y), "radius": _num(o.radius),
+                 "height": _num(o.height), "z0": _num(o.z0), "kind": o.kind, "name": o.name}
             )
     return {
         "name": sc.name,
         "preset": sc.preset,
         "seed": sc.seed,
         "ground": sc.ground,
-        "start": [sc.start[0], sc.start[1]],
+        "start": [_num(sc.start[0]), _num(sc.start[1])],
         "obstacles": obstacles,
         "targets": [
-            {"x": t.x, "y": t.y, "cls": t.cls, "name": t.name, "size": t.size} for t in sc.targets
+            {"x": _num(t.x), "y": _num(t.y), "cls": t.cls, "name": t.name, "size": _num(t.size)}
+            for t in sc.targets
         ],
         "rain_zones": [
-            {"x": z.x, "y": z.y, "radius": z.radius, "t_on": z.t_on,
-             "t_off": None if math.isinf(z.t_off) else z.t_off}
+            {"x": _num(z.x), "y": _num(z.y), "radius": _num(z.radius), "t_on": _num(z.t_on),
+             "t_off": None if math.isinf(z.t_off) else _num(z.t_off)}
             for z in sc.rain_zones
         ],
         "notes": dict(sc.notes),
@@ -49,7 +56,7 @@ def scenario_from_dict(data: dict[str, Any]) -> Scenario:
         obstacles: list[Shape] = []
         for o in data.get("obstacles", []) or []:
             kind = o.get("type", "box")
-            common = {"x": float(o["x"]), "y": float(o["y"]), "height": float(o["height"]),
+            common: dict[str, Any] = {"x": float(o["x"]), "y": float(o["y"]), "height": float(o["height"]),
                       "z0": float(o.get("z0", 0.0)), "name": str(o.get("name", ""))}
             if kind == "box":
                 obstacles.append(Box(sx=float(o["sx"]), sy=float(o["sy"]), yaw=float(o.get("yaw", 0.0)),

@@ -177,7 +177,8 @@ class Config:
 
     def with_overrides(self, overrides: dict[str, Any]) -> Config:
         """Return a copy with nested overrides, e.g. ``{"flight": {"max_speed": 4.0}}``."""
-        return _apply(self, overrides)
+        result: Config = _apply(self, overrides)
+        return result
 
 
 def _apply(obj: Any, overrides: dict[str, Any]) -> Any:

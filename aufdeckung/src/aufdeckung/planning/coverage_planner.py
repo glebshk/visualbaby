@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import itertools
 import math
 from dataclasses import dataclass
 
@@ -53,6 +54,7 @@ class CoveragePlan:
     need_cells: int
     reachable_need_cells: int
     est_time: float
+    hopeless: BoolArray | None = None  # need cells no reachable viewpoint can image
 
 
 @dataclass
@@ -85,28 +87,30 @@ def plan_coverage(
     if need_count == 0:
         return CoveragePlan([], np.zeros(spec.shape, bool), "-", 0, 0, 0.0)
 
-    best: tuple[float, list[_Pt], BoolArray, str] | None = None
+    # Prefer the axis that images more (in 1 % steps), then the shorter route.
+    best: tuple[tuple[float, float], list[_Pt], BoolArray, str] | None = None
     for axis in axes:
         rows = _row_segments(axis, fm, hm, reach, need, cfg)
         route, predicted = _order(rows, (sx, sy), fm, spec)
-        cost = _route_length(route, (sx, sy))
-        if best is None or cost < best[0]:
-            best = (cost, route, predicted, axis)
+        gained = float(np.count_nonzero(predicted & need)) / need_count
+        key = (-round(gained, 2), _route_length(route, (sx, sy)))
+        if best is None or key < best[0]:
+            best = (key, route, predicted, axis)
     assert best is not None
     _, route, predicted, axis = best
 
     remaining = need & ~predicted
-    views = _gap_fill(remaining, fm, hm, reach, cfg)
+    views, seeable = _gap_fill(remaining, fm, hm, reach, cfg)
     last = (route[-1][0], route[-1][1]) if route else (sx, sy)
     view_route, view_pred = _order([[v] for v in views], last, fm, spec, kind="view")
     route += view_route
     predicted |= view_pred
 
-    pts: list[_Pt] = entry_pts + [(sx, sy, fm.transit_alt(*entry), "transit")] + route
+    pts: list[_Pt] = [*entry_pts, (sx, sy, fm.transit_alt(*entry), "transit"), *route]
     waypoints = to_waypoints([(start[0], start[1], start[2], "start"), *pts], fm)[1:]
     reach_need = _observable_from(reach, need, fm, hm, cfg)
     return CoveragePlan(waypoints, predicted, axis, need_count, reach_need,
-                        estimate_time(waypoints, start, cfg.flight))
+                        estimate_time(waypoints, start, cfg.flight), remaining & ~seeable)
 
 
 def plan_transit(start: tuple[float, float, float], goal: tuple[float, float], fm: FlightMap
@@ -163,11 +167,11 @@ def _entry(start: tuple[float, float, float], fm: FlightMap) -> tuple[list[_Pt],
 
 def _row_segments(axis: str, fm: FlightMap, hm: HeightMap, reach: BoolArray, need: BoolArray,
                   cfg: Config) -> list[list[_Sample]]:
-    spec, cam = fm.spec, cfg.camera
+    _spec, cam = fm.spec, cfg.camera
     hx, hy = cam.half_extents(fm.cruise_alt)
     across = 2 * (hy if axis == "x" else hx) * (1 - cfg.planner.overlap)
     radius = cfg.arena.diameter / 2
-    n_rows = max(int(math.ceil(2 * radius / across)), 1)
+    n_rows = max(math.ceil(2 * radius / across), 1)
     offsets = (np.arange(n_rows) - (n_rows - 1) / 2) * across
     along = np.arange(-radius, radius + 1e-9, cfg.planner.sample_step)
     segments: list[list[_Sample]] = []
@@ -265,11 +269,13 @@ def _connect(a: tuple[float, float], b: tuple[float, float], fm: FlightMap
 
 
 def _gap_fill(remaining: BoolArray, fm: FlightMap, hm: HeightMap, reach: BoolArray, cfg: Config
-              ) -> list[_Sample]:
+              ) -> tuple[list[_Sample], BoolArray]:
+    """Greedy set cover of ``remaining``; also returns which remaining cells any candidate sees."""
+    seeable = np.zeros(fm.spec.shape, dtype=bool)
     if not remaining.any():
-        return []
+        return [], seeable
     spec = fm.spec
-    step = max(int(round(cfg.planner.gapfill_step / spec.res)), 1)
+    step = max(round(cfg.planner.gapfill_step / spec.res), 1)
     hx, hy = cfg.camera.half_extents(fm.max_alt)
     near = dilate(remaining, math.hypot(hx, hy) / spec.res)
     lattice = np.zeros(spec.shape, dtype=bool)
@@ -283,6 +289,7 @@ def _gap_fill(remaining: BoolArray, fm: FlightMap, hm: HeightMap, reach: BoolArr
             vis = visible_cells((x, y, z), hm.height, spec, cfg.camera)
             if remaining[vis].any():
                 candidates.append(_Sample(x, y, z, vis))
+                seeable[vis] = True
     chosen: list[_Sample] = []
     remaining = remaining.copy()
     while candidates and len(chosen) < 60:
@@ -293,7 +300,7 @@ def _gap_fill(remaining: BoolArray, fm: FlightMap, hm: HeightMap, reach: BoolArr
         pick = candidates.pop(bi)
         chosen.append(pick)
         remaining[pick.vis] = False
-    return chosen
+    return chosen, seeable
 
 
 def _observable_from(reach: BoolArray, need: BoolArray, fm: FlightMap, hm: HeightMap, cfg: Config
@@ -311,7 +318,7 @@ def to_waypoints(points: list[_Pt], fm: FlightMap) -> list[Waypoint]:
     if not points:
         return []
     out = [Waypoint(*points[0])]
-    for p, q in zip(points, points[1:]):
+    for p, q in itertools.pairwise(points):
         soft = q[3] == "escape" or p[3] == "escape"
         _, peak = fm.segment_profile((p[0], p[1]), (q[0], q[1]), soft=soft)
         z_seg = quantize_alt(max(p[2], q[2], peak if math.isfinite(peak) else max(p[2], q[2])))
@@ -360,4 +367,4 @@ def _route_length(route: list[_Pt], start: tuple[float, float]) -> float:
 
 
 def _polyline_length(pts: list[tuple[float, float]] | FloatArray) -> float:
-    return float(sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(pts, pts[1:])))
+    return float(sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in itertools.pairwise(pts)))

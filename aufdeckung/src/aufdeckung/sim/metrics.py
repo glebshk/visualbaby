@@ -25,7 +25,7 @@ def observable_mask(scenario: Scenario, cfg: Config, step: float = 1.0) -> BoolA
     hm = HeightMap.from_prior(spec, cfg.arena, scenario.obstacles)
     fm = build_flight_map(hm, cfg, (), assume_unknown_below_cruise=False)
     reach = reachable(fm.flyable, fm.cell(*scenario.start))
-    stride = max(int(round(step / spec.res)), 1)
+    stride = max(round(step / spec.res), 1)
     lattice = np.zeros(spec.shape, dtype=bool)
     lattice[::stride, ::stride] = True
     seen = np.zeros(spec.shape, dtype=bool)

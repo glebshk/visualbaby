@@ -82,6 +82,7 @@ class MissionController:
             raise ValueError("explore=False needs a prior map")
         self.coverage = CoverageMap(self.spec)
         self.need = cage_mask(self.spec, self.cfg.arena)
+        self.hopeless = np.zeros(self.spec.shape, dtype=bool)
         self._rain: tuple[RainZone, ...] = ()
         self._dirty = True
         self._last_check = -math.inf
@@ -178,7 +179,7 @@ class MissionController:
             return
         self._last_replan = t
         self.replans += 1
-        need = self.need & ~self.coverage.covered
+        need = self.need & ~self.coverage.covered & ~self.hopeless
         try:
             axes = (self._axis,) if self._axis else ("x", "y")
             plan = plan_coverage(p, self.hm, self.fm, need, self.cfg, axes=axes)
@@ -189,6 +190,11 @@ class MissionController:
             self.route = []
             self._start_return(t, p)
             return
+        if plan.hopeless is not None:
+            # Cells no reachable viewpoint can image (inside tall buildings, under
+            # tree crowns, ...) are dropped for good, except near rain zones.
+            soft = rain_mask(self.spec, self._rain, self.cfg.flight.clearance + 6.0)
+            self.hopeless |= plan.hopeless & ~soft
         useful = int(np.count_nonzero(plan.predicted & need))
         covered = int(np.count_nonzero(self.coverage.covered))
         # A finished route that taught us nothing new would loop forever: stop instead.
@@ -248,7 +254,7 @@ class MissionController:
         if not self._rain:
             return False
         blocked = rain_mask(self.spec, self._rain, self.cfg.flight.clearance + 6.0)
-        return bool((blocked & self.need & ~self.coverage.covered).any())
+        return bool((blocked & self.need & ~self.coverage.covered & ~self.hopeless).any())
 
     def _rebuild(self) -> None:
         self.fm = build_flight_map(self.hm, self.cfg, self._rain,
