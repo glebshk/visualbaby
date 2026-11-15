@@ -27,14 +27,15 @@
       "Bash(git show:*)",
       "Bash(git branch:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(git push origin aufdeckungSim)",
+      "Bash(git push -u origin aufdeckungSim)"
     ],
     "deny": [
       "Bash(rm -rf:*)",
       "Bash(rm -fr:*)",
       "Bash(rm -r:*)",
       "Bash(sudo:*)",
-      "Bash(git push:*)",
       "Bash(git reset --hard:*)",
       "Bash(git clean:*)",
       "Bash(git checkout -- :*)",
@@ -46,7 +47,13 @@
       "Bash(curl:*)",
       "Bash(wget:*)",
       "Read(./.env)",
-      "Read(./.env.*)"
+      "Read(./.env.*)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git push --force-with-lease:*)",
+      "Bash(git push origin main:*)",
+      "Bash(git push origin --delete:*)",
+      "Bash(git push --mirror:*)"
     ]
   }
 }
