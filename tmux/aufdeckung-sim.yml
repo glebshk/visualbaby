@@ -10,10 +10,8 @@ windows:
             - ./scripts/launch-gazebo-default.sh $AUFDECKUNG_WORLD
         - px4:
             - source install/setup.bash
-            - sleep 10
-            - ./scripts/spawn-x500-aufdeckung.sh $START_X $START_Y
-            - sleep 3
-            - ./scripts/launch-sitl-aufdeckung.sh
+            - sleep 5
+            - ./scripts/spawn-x500-aufdeckung.sh $START_X $START_Y && sleep 3 && ./scripts/launch-sitl-aufdeckung.sh
   - ros2:
       layout: even-vertical
       panes:
