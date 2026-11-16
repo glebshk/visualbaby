@@ -226,7 +226,7 @@ def _ray_box(origin: FloatArray, dirs: FloatArray, box: Box) -> FloatArray:
 def _ray_cyl(origin: FloatArray, dirs: FloatArray, cyl: Cylinder) -> FloatArray:
     ox, oy, oz = origin[0] - cyl.x, origin[1] - cyl.y, origin[2]
     dx, dy, dz = dirs[:, 0], dirs[:, 1], dirs[:, 2]
-    result = np.full(len(dirs), np.inf)
+    result: FloatArray = np.full(len(dirs), np.inf)
     if ox * ox + oy * oy <= cyl.radius**2 and cyl.z0 <= oz <= cyl.top:
         return np.zeros(len(dirs))
     a = dx * dx + dy * dy

@@ -81,7 +81,7 @@ def cage_mask(spec: GridSpec, arena: ArenaConfig, margin: float = 0.0) -> BoolAr
 def rasterize(shapes: tuple[Shape, ...] | list[Shape], spec: GridSpec) -> FloatArray:
     """Height map of the tallest obstacle top touching each cell (0 = ground)."""
     gx, gy = spec.centers()
-    height = np.zeros(spec.shape)
+    height: FloatArray = np.zeros(spec.shape)
     pad = spec.res / 2
     for shape in shapes:
         mask = footprint_mask(shape, gx, gy, pad=pad)
@@ -121,8 +121,8 @@ class HeightMap:
     def __init__(self, spec: GridSpec, arena: ArenaConfig) -> None:
         self.spec = spec
         self.arena = arena
-        self.height = np.zeros(spec.shape)
-        self.observed = np.zeros(spec.shape, dtype=bool)
+        self.height: FloatArray = np.zeros(spec.shape)
+        self.observed: BoolArray = np.zeros(spec.shape, dtype=bool)
         self.version = 0
 
     @classmethod

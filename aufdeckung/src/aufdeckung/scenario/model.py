@@ -10,6 +10,7 @@ import numpy as np
 from aufdeckung.config import ArenaConfig
 from aufdeckung.geometry import (
     Box,
+    FloatArray,
     Shape,
     distance_to_shape,
     footprint_mask,
@@ -113,7 +114,7 @@ class Scenario:
         return errors
 
 
-def _outline(obs: Shape, n: int = 16) -> tuple[np.ndarray, np.ndarray]:
+def _outline(obs: Shape, n: int = 16) -> tuple[FloatArray, FloatArray]:
     if isinstance(obs, Box):
         c, s = math.cos(obs.yaw), math.sin(obs.yaw)
         lx = np.array([-1, 1, 1, -1]) * obs.sx / 2

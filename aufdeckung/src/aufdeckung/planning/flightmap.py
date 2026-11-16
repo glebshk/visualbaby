@@ -77,7 +77,7 @@ def build_flight_map(
 ) -> FlightMap:
     spec = hm.spec
     fl = cfg.flight
-    height = hm.height
+    height: FloatArray = hm.height
     if assume_unknown_below_cruise:
         # Unseen space is assumed clear only up to cruise level: the drone never
         # descends below cruise altitude over cells the lidar has not observed.

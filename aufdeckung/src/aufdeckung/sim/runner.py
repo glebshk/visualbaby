@@ -9,7 +9,7 @@ from typing import Any
 import numpy as np
 
 from aufdeckung.config import DETECTION_RADIUS_M, Config
-from aufdeckung.geometry import FloatArray, distance_to_shape
+from aufdeckung.geometry import BoolArray, FloatArray, distance_to_shape
 from aufdeckung.mapping.coverage import CoverageMap
 from aufdeckung.mapping.grid import GridSpec, rasterize
 from aufdeckung.planning.mission import MissionController, Phase
@@ -39,7 +39,7 @@ class RunResult:
     metrics: dict[str, Any]
     trajectory: FloatArray
     coverage: CoverageMap
-    observable: np.ndarray
+    observable: BoolArray
     reports: list[TargetReport]
     controller: MissionController
     collisions: list[tuple[float, str]] = field(default_factory=list)
