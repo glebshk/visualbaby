@@ -42,6 +42,19 @@ class FlyNode(Node):
         thread = threading.Thread(target=self.start_mavsdk_loop, daemon=True)
         thread.start()
     
+    def _submit(self, coro, what):
+        """Run a MAVSDK coroutine on the MAVSDK loop and log its outcome (errors were silently lost)."""
+        future = asyncio.run_coroutine_threadsafe(coro, self.mavsdk_loop)
+
+        def done(f):
+            exc = f.exception()
+            if exc is not None:
+                self.get_logger().error(f"{what} failed: {exc}")
+            else:
+                self.get_logger().info(f"{what}: ok")
+        future.add_done_callback(done)
+        return future
+
     def setup_variables(self):
         self.offboard_status_set = False
         self.action_arm_set = False
@@ -236,20 +249,16 @@ class FlyNode(Node):
         self.get_logger().debug(f"Set Offboard Modus: {msg.data}")
         self.offboard_status = msg.data
         # Async Funktion thread-sicher ausführen
-        if self.offboard_status and not self.offboard_status_set:
+        in_offboard = getattr(getattr(self, "fm", None), "name", "") == "OFFBOARD"
+        if self.offboard_status and (not self.offboard_status_set or not in_offboard):
             self.offboard_status_set = True
-            try: #TODO Action result
+            try:
                 self.get_logger().info("Start Offboard Modus")
-                asyncio.run_coroutine_threadsafe(
-                self.drone.offboard.set_position_ned(
-                    PositionNedYaw(0.0, 0.0, -1*cfg.PX4_TAKEOFF_ALTITUDE, 0.0)  # N, E, D, Yaw
-                    
-                ),
-                self.mavsdk_loop)
-                asyncio.run_coroutine_threadsafe(
-                    self.drone.offboard.start(),
-                    self.mavsdk_loop
-                )
+                if not hasattr(self, "ned_set_pos"):
+                    # No setpoint from the user yet: hold a safe default until one arrives.
+                    self._submit(self.drone.offboard.set_position_ned(
+                        PositionNedYaw(0.0, 0.0, -1*cfg.PX4_TAKEOFF_ALTITUDE, 0.0)), "offboard initial setpoint")
+                self._submit(self.drone.offboard.start(), "offboard start")
                 
             except OffboardError as e:
                 self.get_logger().error(f"Error offboard: {e}")
@@ -258,16 +267,13 @@ class FlyNode(Node):
             self.offboard_status_set = False
             try: #TODO Action result
                 self.get_logger().info("Stop Offboard Modus")
-                asyncio.run_coroutine_threadsafe(
-                    self.drone.offboard.stop(),
-                    self.mavsdk_loop
-                )
+                self._submit(self.drone.offboard.stop(), "offboard stop")
             except OffboardError as e:
                 self.get_logger().error(f"Error offboard: {e}")
 
         
     def set_offboard_ned_position(self, msg):
-        self.get_logger().info(f"Set NED Pos: {msg}")
+        self.get_logger().debug(f"Set NED Pos: {msg}")
         self.ned_set_pos = msg
         # Async Funktion thread-sicher ausführen
         try:
@@ -376,14 +382,11 @@ class FlyNode(Node):
         self.get_logger().info(f"Set arm: {msg.data}")
         self.arm = msg.data
         # Async Funktion thread-sicher ausführen
-        if self.arm and not self.action_arm_set:
+        if self.arm and (not self.action_arm_set or not getattr(self, "status_arm", False)):
             self.action_arm_set = True
-            self.get_logger().info("Armed Drone")
-            try: #TODO Action result
-                asyncio.run_coroutine_threadsafe(
-                    self.drone.action.arm(),
-                    self.mavsdk_loop
-                )
+            self.get_logger().info("Arming drone")
+            try:
+                self._submit(self.drone.action.arm(), "arm")
                 
             except ActionError as e:
                 self.get_logger().error(f"Error arm: {e}")
@@ -408,10 +411,7 @@ class FlyNode(Node):
         if self.land:
             try: #TODO Action result
                 self.get_logger().info("Trigger Land")
-                asyncio.run_coroutine_threadsafe(
-                    self.drone.action.land(),
-                    self.mavsdk_loop
-                )
+                self._submit(self.drone.action.land(), "land")
                 
             except ActionError as e:
                 self.get_logger().error(f"Error land: {e}")

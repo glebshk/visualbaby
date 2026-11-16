@@ -78,6 +78,11 @@ class AufdeckungNode(Node):
         self.rain: tuple[RainZone, ...] = ()
         self.started = False
         self.t0: float | None = None
+        self.health: HEALTH | None = None
+        self.armed = False
+        self.flight_mode = ""
+        self._last_wait_log = -1e9
+        self._last_retry = -1e9
         self.finished = False
 
         self.sp_pub = self.create_publisher(Vector4, "/drone/in/offboard/pos/ned", QUEUE)
@@ -93,6 +98,8 @@ class AufdeckungNode(Node):
         self.create_subscription(Float32, "/drone/out/heading", self.on_heading, QUEUE)
         self.create_subscription(HEALTH, "/drone/out/health", self.on_health, QUEUE)
         self.create_subscription(String, "/drone/out/state/land", self.on_land_state, QUEUE)
+        self.create_subscription(Bool, "/drone/out/armed", self.on_armed, QUEUE)
+        self.create_subscription(String, "/drone/out/flightmode", self.on_flight_mode, QUEUE)
         self.create_subscription(PointCloud2, str(self.get_parameter("lidar_topic").value), self.on_lidar, 2)
         self.create_subscription(Float32MultiArray, "/aufdeckung/rain", self.on_rain, QUEUE)
 
@@ -110,7 +117,32 @@ class AufdeckungNode(Node):
         self.yaw = heading_to_enu_yaw(msg.data)
 
     def on_health(self, msg: HEALTH) -> None:
+        self.health = msg
         self.health_ok = bool(msg.gyro and msg.acc and msg.mag and msg.ned and msg.globalpos and msg.armable)
+
+    def on_armed(self, msg: Bool) -> None:
+        if msg.data != self.armed:
+            self.get_logger().info(f"PX4 {'armed' if msg.data else 'disarmed'}")
+        self.armed = msg.data
+
+    def on_flight_mode(self, msg: String) -> None:
+        if msg.data != self.flight_mode:
+            self.get_logger().info(f"PX4 flight mode: {msg.data}")
+        self.flight_mode = msg.data
+
+    def _waiting_for(self) -> str:
+        """Human-readable reason why the mission has not started yet."""
+        if self.pos is None:
+            return "no position from PX4 yet (/drone/out/pos/ned): is px4_to_ros2 connected?"
+        if self.health is None:
+            return "no health report from PX4 yet (/drone/out/health)"
+        missing = [name for name in ("gyro", "acc", "mag", "ned", "globalpos", "armable")
+                   if not getattr(self.health, name)]
+        if missing:
+            return "PX4 health checks not passed yet: " + ", ".join(missing)
+        if not bool(self.get_parameter("auto_start").value):
+            return "auto_start is false"
+        return ""
 
     def on_land_state(self, msg: String) -> None:
         self.land_state = msg.data
@@ -128,18 +160,30 @@ class AufdeckungNode(Node):
     # ------------------------------------------------------------------ main loop
 
     def tick(self) -> None:
-        if self.pos is None or self.finished:
-            return
         now = self.get_clock().now().nanoseconds * 1e-9
+        if self.finished:
+            return
+        if not self.started and (reason := self._waiting_for()):
+            if now - self._last_wait_log >= 5.0:
+                self._last_wait_log = now
+                self.get_logger().info(f"waiting: {reason}")
+            return
         if not self.started:
-            if not (self.health_ok and bool(self.get_parameter("auto_start").value)):
-                return
             self.get_logger().info("health ok: arming and switching to offboard")
             self.publish_setpoint(self.home[0], self.home[1], max(self.pos[2], 0.0))
             self.arm_pub.publish(Bool(data=True))
             self.offboard_pub.publish(Bool(data=True))
             self.started = True
             self.t0 = now
+            self._last_retry = now
+        elif (self.ctrl.phase == Phase.TAKEOFF and not (self.armed and self.flight_mode == "OFFBOARD")
+              and now - self._last_retry >= 3.0):
+            # PX4 rejects arming/offboard now and then (e.g. right after boot): ask again.
+            self._last_retry = now
+            self.get_logger().warn(f"not airborne yet (armed={self.armed}, mode={self.flight_mode or '?'}): "
+                                   "requesting arm + offboard again")
+            self.arm_pub.publish(Bool(data=True))
+            self.offboard_pub.publish(Bool(data=True))
         t = now - (self.t0 or now)
         scan, self.scan = self.scan, None
         sp = self.ctrl.update(t, np.array(self.pos), scan, self.rain)
