@@ -24,25 +24,25 @@ from pathlib import Path
 import numpy as np
 import rclpy
 import yaml
-from aufdeckung.config import Config
-from aufdeckung.planning.mission import MissionController, Phase
-from aufdeckung.scenario.io import load_scenario
-from aufdeckung.scenario.model import RainZone
 from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import OccupancyGrid
 from nav_msgs.msg import Path as PathMsg
 from rclpy.node import Node
+from ros_msg.msg import HEALTH, Vector4
 from sensor_msgs.msg import PointCloud2
 from sensor_msgs_py import point_cloud2
 from std_msgs.msg import Bool, Float32, Float32MultiArray, String
 
+from aufdeckung.config import Config
+from aufdeckung.planning.mission import MissionController, Phase
+from aufdeckung.scenario.io import load_scenario
+from aufdeckung.scenario.model import RainZone
 from aufdeckung_ros.conversions import (
     cage_enu_to_setpoint,
     heading_to_enu_yaw,
     lidar_to_world,
     px4_ned_to_cage_enu,
 )
-from ros_msg.msg import HEALTH, Vector4
 
 QUEUE = 10
 YAW_DEG = 90.0  # keep the camera's long axis along cage x (east), as the planner assumes
