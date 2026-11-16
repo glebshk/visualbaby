@@ -5,10 +5,14 @@
     "LIBVA_DRIVER_NAME": "iHD",
     "DISPLAY": "${env:DISPLAY}",
     "QT_X11_NO_MITSHM": "1",
+    "LD_LIBRARY_PATH": "/usr/lib/wsl/lib",
     "FASTRTPS_DEFAULT_PROFILES_FILE": "/root/.ros/fastdds.xml"
   },
+  // GPU rendering through WSL2 (WSLg / DirectX 12): open the repo from a WSL terminal with `code .`
+  "runArgs": ["--device=/dev/dxg"],
   "mounts": [
-    "source=/tmp/.X11-unix,target=/tmp/.X11-unix,type=bind"
+    "source=/tmp/.X11-unix,target=/tmp/.X11-unix,type=bind",
+    "source=/usr/lib/wsl,target=/usr/lib/wsl,type=bind"
   ],
   "forwardPorts": [14550, 8555],
   "postCreateCommand": "mkdir -p /root/.ros && echo '<profiles><participant profile_name=\"default\" is_default_profile=\"true\"><rtps><useBuiltinTransports>true</useBuiltinTransports><userTransports/></rtps></participant></profiles>' > /root/.ros/fastdds.xml",

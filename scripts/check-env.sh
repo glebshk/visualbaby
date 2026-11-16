@@ -24,7 +24,16 @@ if [ -f /.dockerenv ] || grep -q docker /proc/1/cgroup 2>/dev/null; then
     [ -f install/setup.bash ] && ok "ROS workspace built (install/)" || bad "ROS workspace not built (run ./scripts/setup-sim.sh)"
     command -v tmuxinator >/dev/null && ok "tmuxinator" || bad "tmuxinator missing (apt install tmuxinator)"
     [ -n "$DISPLAY" ] && ok "DISPLAY=$DISPLAY (GUI windows possible)" || bad "DISPLAY not set: Gazebo GUI cannot open"
-    [ -e /dev/dri ] && ok "/dev/dri present (GPU rendering)" || info "/dev/dri missing: Gazebo will render on CPU (slow)"
+    if [ -e /dev/dxg ]; then
+        ok "/dev/dxg present (WSL2 GPU rendering via DirectX 12)"
+    elif [ -e /dev/dri ]; then
+        ok "/dev/dri present (GPU rendering)"
+    else
+        info "no /dev/dri or /dev/dxg: Gazebo will render on CPU (slow)"
+    fi
+    if command -v glxinfo >/dev/null; then
+        info "OpenGL $(glxinfo -B 2>/dev/null | grep -i 'renderer string' | sed 's/.*: //')"
+    fi
 else
     echo "== On the host: checking Docker"
     if command -v docker >/dev/null; then
