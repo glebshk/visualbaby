@@ -148,6 +148,13 @@ def _entry(start: tuple[float, float, float], fm: FlightMap, rescue: FlightMap |
     """Points needed to reach a flyable cell (escaping a rain zone if necessary) and that cell."""
     cell = fm.cell(start[0], start[1])
     if fm.flyable[cell]:
+        if rescue is not None and anchor is not None and _cut_off(fm, cell, anchor):
+            # Flyable here, but the map has closed in: this pocket no longer connects to home.
+            # Planning from inside it would see almost nothing and write the rest off as hopeless.
+            try:
+                return _rescue(start, fm, rescue, anchor)
+            except PlanningError:
+                pass  # no way out even with reduced margins: work with the pocket
         return [], cell
     hard = fm.hard_ok
     if not hard[cell] and rescue is not None and anchor is not None:
@@ -175,6 +182,18 @@ def _entry(start: tuple[float, float, float], fm: FlightMap, rescue: FlightMap |
             xy = smooth(fm, [fm.spec.center(*c) for c in path], soft=True)
             return [(x, y, fm.transit_alt(*fm.cell(x, y)), "escape") for x, y in xy], target
     raise PlanningError("trapped: no escape path from rain zone")
+
+
+def _cut_off(fm: FlightMap, cell: Cell, anchor: tuple[float, float]) -> bool:
+    """True if ``cell`` cannot reach ``anchor`` on the rain-free flight map.
+
+    Rain is ignored on purpose: an active rain zone between the drone and home is temporary
+    and must not trigger a rescue path through it.
+    """
+    home = fm.cell(*anchor)
+    if not fm.hard_ok[home] or not fm.hard_ok[cell]:
+        return False
+    return not bool(reachable(fm.hard_ok, cell)[home])
 
 
 def _rescue(start: tuple[float, float, float], fm: FlightMap, rescue: FlightMap,

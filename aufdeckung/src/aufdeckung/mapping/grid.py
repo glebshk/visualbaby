@@ -21,6 +21,8 @@ from aufdeckung.geometry import (
 
 IntArray = NDArray[np.int64]
 UNSEEN_TOP_MARGIN = 2.0
+CARVE_MAX_RANGE = 12.0  # beyond this, beams spread too far apart to vouch for thin obstacles
+CARVE_END_EXCLUSION = 0.75  # ignore beam samples this close (xy) to the beam's own hit point
 
 
 @dataclass(frozen=True)
@@ -122,6 +124,7 @@ class HeightMap:
         self.spec = spec
         self.arena = arena
         self.height: FloatArray = np.zeros(spec.shape)
+        self.hit_height: FloatArray = np.zeros(spec.shape)  # highest real lidar hit, no margin
         self.observed: BoolArray = np.zeros(spec.shape, dtype=bool)
         self.version = 0
 
@@ -130,21 +133,31 @@ class HeightMap:
                    ) -> HeightMap:
         hm = cls(spec, arena)
         hm.height = rasterize(shapes, spec)
+        hm.hit_height = hm.height.copy()
         hm.observed[:] = True
         return hm
 
-    def integrate_hits(self, points: FloatArray, sensor_z: float, top_beam: BoolArray | None = None
-                       ) -> int:
+    def integrate_hits(self, points: FloatArray, sensor_z: float, top_beam: BoolArray | None = None,
+                       origin: tuple[float, float, float] | FloatArray | None = None) -> int:
         """Fuse lidar hit points (N, 3) in world frame. Returns the number of cells that grew.
 
         Hits from the highest beam at or above the sensor height mean the obstacle
         may continue upward out of view, so the cell is raised by ``UNSEEN_TOP_MARGIN``.
         Later scans from higher up raise it further if needed.
+
+        With ``origin`` (the sensor position), beams also carve free space: a beam that passes
+        over a cell proves the cell is lower there, which removes that guessed margin again
+        (never below a real hit). Without it, a roof edge seen from just below its top stays
+        2 m too tall for the whole flight and the roof can never be imaged.
         """
         if len(points) == 0:
             return 0
         iy, ix = self.spec.indices(points[:, 0], points[:, 1])
         ok = self.spec.valid(iy, ix)
+        raw_z = np.where(points[:, 2] < 0.15, 0.0, np.clip(points[:, 2], 0.0, self.arena.height))
+        if origin is not None:
+            self._carve(np.asarray(origin, dtype=float), points, iy, ix, ok)
+        np.maximum.at(self.hit_height, (iy[ok], ix[ok]), raw_z[ok])
         z = np.clip(points[:, 2], 0.0, self.arena.height)
         if top_beam is not None:
             z = np.where(top_beam & (points[:, 2] >= sensor_z - 0.05),
@@ -158,3 +171,43 @@ class HeightMap:
         if grown or len(iy):
             self.version += 1
         return grown
+
+    def _carve(self, origin: FloatArray, points: FloatArray, hit_iy: IntArray, hit_ix: IntArray,
+               hit_ok: BoolArray) -> None:
+        """Lower margin-inflated cells that beams of this scan demonstrably passed over."""
+        inflated = self.height > self.hit_height + 0.05
+        if not inflated.any():
+            return
+        # A beam can pass through a cell beside a thin pole that other beams of the same scan hit.
+        # So within one cell of this scan's hits, only beams passing above the highest of those
+        # hits count as evidence (a roof edge hit at 8.3 m, overflown by a beam at 8.6 m).
+        hit_now = np.full(self.spec.shape, -np.inf)
+        np.maximum.at(hit_now, (hit_iy[hit_ok], hit_ix[hit_ok]), points[hit_ok, 2])
+        protect_below = max_filter_disk(hit_now, 1.5, fill=-np.inf) + 0.1
+        candidates = inflated
+        z_floor = float(np.min(self.hit_height[candidates]))
+        vec = points - origin[None, :]
+        length = np.linalg.norm(vec, axis=1)
+        horiz = np.hypot(vec[:, 0], vec[:, 1])
+        step = self.spec.res / 2
+        k = max(math.ceil(min(float(np.max(length)), CARVE_MAX_RANGE) / step), 1)
+        f = (np.arange(1, k + 1) * step)[None, :] / np.maximum(length, 1e-9)[:, None]  # (N, k)
+        keep = (f < 1.0) & ((1.0 - f) * horiz[:, None] > CARVE_END_EXCLUSION)
+        sx = origin[0] + vec[:, 0:1] * f
+        sy = origin[1] + vec[:, 1:2] * f
+        sz = origin[2] + vec[:, 2:3] * f
+        keep &= sz > z_floor
+        if not keep.any():
+            return
+        sx, sy, sz = sx[keep], sy[keep], sz[keep]
+        siy, six = self.spec.indices(sx, sy)
+        valid = self.spec.valid(siy, six)
+        siy, six, sz = siy[valid], six[valid], sz[valid]
+        sel = candidates[siy, six] & (sz < self.height[siy, six]) & (sz > protect_below[siy, six])
+        if not sel.any():
+            return
+        cap = np.full(self.spec.shape, np.inf)
+        np.minimum.at(cap, (siy[sel], six[sel]), sz[sel])
+        lowered = np.isfinite(cap)
+        self.height[lowered] = np.maximum(self.hit_height[lowered],
+                                          np.minimum(self.height[lowered], cap[lowered]))

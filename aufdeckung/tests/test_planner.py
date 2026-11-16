@@ -145,6 +145,28 @@ def test_rescue_out_of_closed_pocket(cfg: Config, spec: GridSpec) -> None:
                       next(w for w in reversed(wps) if w.kind == "escape").xyz, fm, cfg)
 
 
+def test_coverage_from_closed_pocket_escapes_instead_of_giving_up(cfg: Config, spec: GridSpec) -> None:
+    # Regression (benchmark street_13): the drone's own cell is flyable, but it sits in a pocket
+    # that is cut off from home. Planning from inside the pocket saw almost nothing, so every
+    # remaining cell was marked hopeless and the mission ended early.
+    pocket = [Box(0.0, 4.25, 12.0, 1.0, 13.0, name="n"), Box(-4.0, -4.25, 5.0, 1.0, 13.0, name="sw"),
+              Box(4.0, -4.25, 5.0, 1.0, 13.0, name="se"), Box(5.75, 0.0, 1.0, 9.5, 13.0, name="e"),
+              Box(-5.75, 0.0, 1.0, 9.5, 13.0, name="w")]
+    hm, fm = _prior(cfg, spec, pocket)
+    start = (0.0, 0.0, 8.0)
+    assert fm.flyable[fm.cell(0.0, 0.0)]
+    need = cage_mask(spec, cfg.arena)
+    plan = plan_coverage(start, hm, fm, need, cfg, rescue=_rescue_map(cfg, spec, pocket),
+                         anchor=(0.0, -18.0))
+    assert plan.waypoints[0].kind == "escape"
+    outside = need.copy()
+    (y0, x0), (y1, x1) = fm.cell(-6.0, -6.0), fm.cell(6.0, 6.0)
+    outside[y0:y1 + 1, x0:x1 + 1] = False  # everything except the pocket
+    assert np.count_nonzero(plan.predicted & outside) > 0.8 * np.count_nonzero(outside)
+    assert plan.hopeless is not None
+    assert np.count_nonzero(plan.hopeless & outside) < 0.05 * np.count_nonzero(outside)
+
+
 def test_rescue_when_drone_is_inside_safety_margin(cfg: Config, spec: GridSpec) -> None:
     wall = [Box(0.0, 0.0, 2.0, 10.0, 13.0, name="tower")]
     hm, fm = _prior(cfg, spec, wall)

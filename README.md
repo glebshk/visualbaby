@@ -52,23 +52,35 @@ camera: {hfov: 1.3}
 mission: {time_budget: 600}
 ```
 
-## 2. Tests
+## 2. Tests and the development loop
+
+One script runs every check. CI on GitHub runs the same script, so green here means green there:
 
 ```bash
-cd aufdeckung
-python -m pytest -m "not slow"
+./scripts/check.sh
 ```
 
-```bash
-python -m pytest -m slow
-```
+| option | adds | time |
+|---|---|---|
+| *(none)* | lint (ruff), types (mypy), fast tests | ~3 min |
+| `--quick` | lint and types only | seconds |
+| `--full` | slow tests: whole missions, two random layouts per preset | ~10 min |
+| `--bench N` | benchmark, N random arenas per preset, explore and prior mode | ~1 min per arena per core |
+| `--fix` | let ruff fix what it can first | |
 
-```bash
-ruff check src tests && python -m mypy src
-```
+The loop for every change:
 
-The slow tests fly two random layouts per preset and check the acceptance criteria: no collision,
-at least 0.75 m clearance, at least 95 % of the observable area imaged within 600 s, landed at home.
+1. **Reproduce** the problem as a failing test, or find it with the benchmark.
+   `--first-seed` gives arenas no earlier run has seen, so improvements are not tuned to known layouts:
+   `python -m aufdeckung benchmark --presets all --seeds 5 --first-seed 10 --workers 4`
+2. **Diagnose** with one arena: `python -m aufdeckung simulate --preset street --seed 13 --events --plot`.
+3. **Fix**, then `./scripts/check.sh` until green.
+4. **Verify** with the benchmark, before and after, on the same seeds; safety numbers (collisions,
+   minimum clearance) must not get worse.
+5. **Push**; CI runs the same checks again.
+
+Acceptance criteria (`sim/benchmark.Criteria`): no collision, at least 0.75 m clearance, at least 95 % of
+the observable area imaged within 600 s, landed at home.
 
 ## 3. Gazebo + PX4 SITL (Linux, or Windows via WSL2 / Docker)
 

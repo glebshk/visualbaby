@@ -21,7 +21,9 @@
 ## Pipeline (one controller update)
 
 ```
-lidar points --> HeightMap (2.5D: max surface height per 0.5 m cell + "observed" flag)
+lidar points --> HeightMap (2.5D: max surface height per 0.5 m cell + "observed" flag;
+                    top-beam hits get a 2 m "may continue upward" margin, which beams
+                    passing over the cell later carve away again, never below a real hit)
                     |
                     v
              FlightMap: required altitude per cell
@@ -52,7 +54,10 @@ camera footprint -->|--> CoverageMap (which cells have been imaged)
 4. Gap filling: the route's coverage is predicted with occlusion; extra viewpoints are added by
    greedy set cover, also at low altitude (down to `min_alt`) where the map is known, which reaches
    alleys and ground next to tall buildings. Cells no reachable viewpoint can see (inside towers,
-   under tree crowns) are marked hopeless and not chased again.
+   under tree crowns) are marked hopeless; before returning home they get one more try with the
+   map known by then (early verdicts come from a coarse map).
+   If the map closes in so that the drone's flyable pocket no longer connects to home, planning
+   starts with a rescue path out of the pocket instead of judging the arena from inside it.
 5. 3D expansion: climb before a leg, descend after it, so every horizontal leg is at or above the
    required altitude along the whole leg. `tests/helpers.assert_route_safe` checks this invariant.
 
@@ -79,6 +84,9 @@ camera footprint -->|--> CoverageMap (which cells have been imaged)
   Run the same arenas in Gazebo + PX4 SITL (`scripts/launch-sim-aufdeckung.sh`) before trusting timings.
 * The lidar-to-world transform ignores roll and pitch; fine in slow flight, revisit for faster flight.
 * 2.5D map: overhangs (tree crowns, bridges) are treated as solid down to the ground (conservative).
+* Free-space carving only uses beams that hit something; beams without a return (into the sky) carry
+  free-space evidence too but are dropped from the point cloud. Using them (organised Gazebo cloud,
+  beam index -> direction) would clear margins faster in open areas.
 * Thin obstacles taller than cruise altitude minus vertical clearance (> 6.5 m by default) must be
   seen by the lidar in time; poles up to 6 m are always overflown at cruise altitude.
 * Rain zones are visual-only in Gazebo; switch them on by publishing `/aufdeckung/rain`.

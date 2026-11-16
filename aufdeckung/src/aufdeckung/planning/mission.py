@@ -91,6 +91,7 @@ class MissionController:
             "min_alt": min(fl.min_alt, fl.cruise_alt),
         }})
         self.hopeless = np.zeros(self.spec.shape, dtype=bool)
+        self._hopeless_retry_version = -1
         self._rain: tuple[RainZone, ...] = ()
         self._dirty = True
         self._last_check = -math.inf
@@ -111,7 +112,7 @@ class MissionController:
         rain_active: tuple[RainZone, ...] = (),
     ) -> Setpoint:
         p = (float(pos[0]), float(pos[1]), float(pos[2]))
-        if scan is not None and self.hm.integrate_hits(scan[0], p[2], scan[1]):
+        if scan is not None and self.hm.integrate_hits(scan[0], p[2], scan[1], origin=p):
             self._dirty = True
         if tuple(rain_active) != self._rain:
             self._rain = tuple(rain_active)
@@ -173,6 +174,14 @@ class MissionController:
             return
         if self.phase in (Phase.TAKEOFF, Phase.COVER):
             self._replan(t, p, route_ended=True)
+            if not self.route and self.hopeless.any() and self._hopeless_retry_version != self.hm.version:
+                # "Hopeless" is judged on the map known at that moment, which early in the flight
+                # is coarse and pessimistic. Before giving up, retry those cells once with the
+                # current map (again after each map change); the stall check stops no-progress loops.
+                self._hopeless_retry_version = self.hm.version
+                self._log(t, "hopeless_retry", f"{int(np.count_nonzero(self.hopeless))} cells")
+                self.hopeless[:] = False
+                self._replan(t, p, route_ended=True)
             if not self.route:
                 if self._rain_blocked_need():
                     self._set_phase(t, Phase.WAIT)
