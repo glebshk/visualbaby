@@ -20,7 +20,7 @@ if [ -f /.dockerenv ] || grep -q docker /proc/1/cgroup 2>/dev/null; then
     [ -d "$PX4" ] && ok "PX4 source: $PX4 ($(git -C "$PX4" describe --tags 2>/dev/null))" || bad "PX4 not found at $PX4"
     [ -d "$PX4/build/px4_sitl_default" ] && ok "PX4 SITL already built" || info "PX4 SITL not built yet (first launch builds it, ~10 min)"
     python3 -c "import mavsdk" 2>/dev/null && ok "MAVSDK python" || bad "MAVSDK python missing (pip install mavsdk)"
-    python3 -c "import aufdeckung" 2>/dev/null && ok "aufdeckung package installed" || bad "aufdeckung not installed (run ./scripts/setup-sim.sh)"
+    python3 -c "import aufdeckung.config" 2>/dev/null && ok "aufdeckung package installed" || bad "aufdeckung not installed (run ./scripts/setup-sim.sh)"
     [ -f install/setup.bash ] && ok "ROS workspace built (install/)" || bad "ROS workspace not built (run ./scripts/setup-sim.sh)"
     command -v tmuxinator >/dev/null && ok "tmuxinator" || bad "tmuxinator missing (apt install tmuxinator)"
     [ -n "$DISPLAY" ] && ok "DISPLAY=$DISPLAY (GUI windows possible)" || bad "DISPLAY not set: Gazebo GUI cannot open"
@@ -48,7 +48,7 @@ else
     fi
     command -v code >/dev/null && ok "VS Code installed" || info "VS Code not found (needed for 'Reopen in Container')"
     command -v nvidia-smi >/dev/null && info "NVIDIA GPU found: needs nvidia-container-toolkit for GPU in Docker"
-    python3 -c "import aufdeckung" 2>/dev/null && ok "aufdeckung installed on host (headless sim works here too)" \
+    python3 -c "import aufdeckung.config" 2>/dev/null && ok "aufdeckung installed on host (headless sim works here too)" \
         || info "aufdeckung not installed on host (optional: cd aufdeckung && pip install -e '.[viz]')"
 fi
 
