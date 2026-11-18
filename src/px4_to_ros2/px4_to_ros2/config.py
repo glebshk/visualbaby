@@ -17,3 +17,4 @@ TELEMETRY_ALT_RATE = 10     # Hz
 TELEMETRY_IMU_RATE = 100    # Hz
 TELEMETRY_LANDED_STATE_RATE = 10 # Hz
 TELEMETRY_POS_RATE = 20     # Hz
+TELEMETRY_ATT_RATE = 50     # Hz, used to tilt-correct lidar points

@@ -51,24 +51,54 @@ def cloud_xyz(points: object) -> np.ndarray:
 SELF_FILTER_RADIUS_M = 0.6
 
 
+def quat_to_matrix(q: tuple[float, float, float, float]) -> np.ndarray:
+    """Rotation matrix of a unit quaternion (w, x, y, z), Hamilton convention."""
+    w, x, y, z = q
+    n = math.sqrt(w * w + x * x + y * y + z * z) or 1.0
+    w, x, y, z = w / n, x / n, y / n, z / n
+    return np.array([
+        [1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y)],
+        [2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x)],
+        [2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y)],
+    ])
+
+
+def tilt_deg(q_ned: tuple[float, float, float, float]) -> float:
+    """Angle between the body's down axis and the world's down axis (roll and pitch combined)."""
+    return math.degrees(math.acos(max(-1.0, min(1.0, float(quat_to_matrix(q_ned)[2, 2])))))
+
+
 def lidar_to_world(points_sensor: np.ndarray, drone_enu: tuple[float, float, float], yaw_enu: float,
-                   v_max_deg: float, beam_step_deg: float, min_range: float = SELF_FILTER_RADIUS_M
+                   v_max_deg: float, beam_step_deg: float, min_range: float = SELF_FILTER_RADIUS_M,
+                   attitude_ned: tuple[float, float, float, float] | None = None
                    ) -> tuple[np.ndarray, np.ndarray]:
     """Rotate sensor-frame points (x forward, y left, z up) into the cage frame.
 
+    ``attitude_ned`` is PX4's attitude quaternion (w, x, y, z): the rotation from the body frame
+    (forward-right-down) to local NED. With it, roll and pitch are taken into account; without
+    it only ``yaw_enu`` is. Roll and pitch matter: a multicopter tilts 10-20 deg when it
+    accelerates, and ignoring 10 deg puts a ground hit 20 m away 3.5 m too high, a phantom wall.
+
     Points closer than ``min_range`` (the drone itself) and non-finite points (no return)
-    are dropped. Roll and pitch are ignored (small in hover/cruise). Returns world points
-    and a mask of points that came from the highest beam.
+    are dropped. Returns world points and a mask of points that came from the highest beam.
     """
     pts = np.asarray(points_sensor, dtype=float).reshape(-1, 3)
     finite = np.isfinite(pts).all(axis=1)
     pts = pts[finite]
     pts = pts[np.linalg.norm(pts, axis=1) >= min_range]
-    c, s = math.cos(yaw_enu), math.sin(yaw_enu)
     world = np.empty_like(pts)
-    world[:, 0] = drone_enu[0] + c * pts[:, 0] - s * pts[:, 1]
-    world[:, 1] = drone_enu[1] + s * pts[:, 0] + c * pts[:, 1]
-    world[:, 2] = drone_enu[2] + pts[:, 2]
+    if attitude_ned is not None:
+        frd = pts * np.array([1.0, -1.0, -1.0])  # sensor FLU -> body FRD
+        ned = frd @ quat_to_matrix(attitude_ned).T
+        world[:, 0] = drone_enu[0] + ned[:, 1]  # east
+        world[:, 1] = drone_enu[1] + ned[:, 0]  # north
+        world[:, 2] = drone_enu[2] - ned[:, 2]  # up
+    else:
+        c, s = math.cos(yaw_enu), math.sin(yaw_enu)
+        world[:, 0] = drone_enu[0] + c * pts[:, 0] - s * pts[:, 1]
+        world[:, 1] = drone_enu[1] + s * pts[:, 0] + c * pts[:, 1]
+        world[:, 2] = drone_enu[2] + pts[:, 2]
+    # Beam identity is a property of the sensor, so the top beam is found in the sensor frame.
     elevation = np.degrees(np.arctan2(pts[:, 2], np.hypot(pts[:, 0], pts[:, 1])))
     top = elevation >= v_max_deg - beam_step_deg / 2
     return world, top

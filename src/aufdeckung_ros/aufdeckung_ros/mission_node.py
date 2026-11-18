@@ -24,7 +24,7 @@ from pathlib import Path
 import numpy as np
 import rclpy
 import yaml
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, QuaternionStamped
 from nav_msgs.msg import OccupancyGrid
 from nav_msgs.msg import Path as PathMsg
 from rclpy.node import Node
@@ -82,6 +82,9 @@ class AufdeckungNode(Node):
         self.started = False
         self.t0: float | None = None
         self.health: HEALTH | None = None
+        self.attitude: tuple[float, float, float, float] | None = None
+        self.attitude_time = -1e9
+        self._warned_no_attitude = False
         self.armed = False
         self.flight_mode = ""
         self._last_wait_log = -1e9
@@ -100,6 +103,7 @@ class AufdeckungNode(Node):
 
         self.create_subscription(PoseStamped, "/drone/out/pos/ned", self.on_pose, QUEUE)
         self.create_subscription(Float32, "/drone/out/heading", self.on_heading, QUEUE)
+        self.create_subscription(QuaternionStamped, "/drone/out/attitude", self.on_attitude, QUEUE)
         self.create_subscription(HEALTH, "/drone/out/health", self.on_health, QUEUE)
         self.create_subscription(String, "/drone/out/state/land", self.on_land_state, QUEUE)
         self.create_subscription(Bool, "/drone/out/armed", self.on_armed, QUEUE)
@@ -116,6 +120,11 @@ class AufdeckungNode(Node):
     def on_pose(self, msg: PoseStamped) -> None:
         p = msg.pose.position
         self.pos = px4_ned_to_cage_enu(p.x, p.y, p.z, self.home)
+
+    def on_attitude(self, msg: QuaternionStamped) -> None:
+        q = msg.quaternion
+        self.attitude = (q.w, q.x, q.y, q.z)
+        self.attitude_time = self.get_clock().now().nanoseconds * 1e-9
 
     def on_heading(self, msg: Float32) -> None:
         self.yaw = heading_to_enu_yaw(msg.data)
@@ -160,8 +169,15 @@ class AufdeckungNode(Node):
         except Exception as exc:  # a bad scan must not take the whole mission down
             self.get_logger().error(f"lidar message skipped: {exc}", throttle_duration_sec=5.0)
             return
+        now = self.get_clock().now().nanoseconds * 1e-9
+        attitude = self.attitude if now - self.attitude_time < 0.5 else None
+        if attitude is None and not self._warned_no_attitude:
+            self._warned_no_attitude = True
+            self.get_logger().warning("no attitude on /drone/out/attitude: lidar is corrected for yaw only, "
+                                      "tilt will put ground hits too high (rebuild px4_to_ros2?)")
         self.scan = lidar_to_world(pts, self.pos, self.yaw, self.cfg.lidar.v_max_deg, self.beam_step,
-                                   min_range=float(self.get_parameter("lidar_self_filter").value))
+                                   min_range=float(self.get_parameter("lidar_self_filter").value),
+                                   attitude_ned=attitude)
 
     def on_rain(self, msg: Float32MultiArray) -> None:
         vals = list(msg.data)

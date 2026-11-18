@@ -6,7 +6,7 @@ import asyncio
 from mavsdk import System
 from mavsdk.offboard import PositionNedYaw, OffboardError, VelocityNedYaw, AccelerationNed, VelocityBodyYawspeed
 from mavsdk.action import ActionError
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, QuaternionStamped
 from std_msgs.msg import Bool,Float32, String, Float32MultiArray
 import time 
 from ros_msg.msg import NEDPosVelAcc, NEDPosVel, Vector4, HEALTH, TelBatt
@@ -70,6 +70,8 @@ class FlyNode(Node):
         self.health_pub = self.create_publisher(HEALTH, "/drone/out/health", cfg.ROS_QUEUE_SIZE)
         self.imu_pub = self.create_publisher(Imu, "/drone/out/imu", cfg.ROS_QUEUE_SIZE)
         self.ned_pos_pub = self.create_publisher(PoseStamped, "/drone/out/pos/ned", cfg.ROS_QUEUE_SIZE)
+        # Attitude quaternion (w, x, y, z): rotation from body FRD to local NED, as PX4 reports it.
+        self.att_pub = self.create_publisher(QuaternionStamped, "/drone/out/attitude", cfg.ROS_QUEUE_SIZE)
         self.landing_state_pub = self.create_publisher(String, "/drone/out/state/land", cfg.ROS_QUEUE_SIZE)
         self.in_air_pub = self.create_publisher(Bool, "/drone/out/state/in_air", cfg.ROS_QUEUE_SIZE)
 
@@ -100,6 +102,10 @@ class FlyNode(Node):
         await self.drone.telemetry.set_rate_landed_state(cfg.TELEMETRY_LANDED_STATE_RATE)
         await self.drone.telemetry.set_rate_position(cfg.TELEMETRY_POS_RATE)
         await self.drone.action.set_takeoff_altitude(cfg.PX4_TAKEOFF_ALTITUDE)
+        try:
+            await self.drone.telemetry.set_rate_attitude_quaternion(cfg.TELEMETRY_ATT_RATE)
+        except Exception as e:  # older PX4/MAVSDK: keep the default rate
+            self.get_logger().warning(f"attitude rate not set: {e}")
     
     async def mavsdk_task(self):
         # Start of mavlink Connection
@@ -135,7 +141,8 @@ class FlyNode(Node):
         self.publish_status_landed_state(),
         self.publish_status_heading(),
         self.publish_status_health(),
-        self.publish_status_in_air()
+        self.publish_status_in_air(),
+        self.publish_status_attitude()
     )
 
     async def publish_status_armed(self):
@@ -235,6 +242,15 @@ class FlyNode(Node):
             self.ned_pos_pub.publish(msg)
             await asyncio.sleep(1/cfg.TELEMETRY_PUBLISH_RATE)
     
+    async def publish_status_attitude(self):
+        async for q in self.drone.telemetry.attitude_quaternion():
+            msg = QuaternionStamped()
+            msg.header.stamp = self.get_clock().now().to_msg()
+            msg.header.frame_id = "ned"
+            msg.quaternion.w, msg.quaternion.x = float(q.w), float(q.x)
+            msg.quaternion.y, msg.quaternion.z = float(q.y), float(q.z)
+            self.att_pub.publish(msg)
+
     async def publish_status_landed_state(self):
         async for self.landed_state in self.drone.telemetry.landed_state():
             #self.get_logger().info(f"alt {self.landed_state.name}")
