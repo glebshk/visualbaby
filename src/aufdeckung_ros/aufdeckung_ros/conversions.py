@@ -45,16 +45,25 @@ def cloud_xyz(points: object) -> np.ndarray:
     return xyz.reshape(-1, 3)
 
 
+# The lidar sits 12 cm above the x500's body; its motors and propellers are 0.25-0.4 m away and
+# inside its field of view. Those self-hits looked like an obstacle at flight altitude right where
+# the drone is, so its own cell and the take-off area became unflyable (mission went to HOLD).
+SELF_FILTER_RADIUS_M = 0.6
+
+
 def lidar_to_world(points_sensor: np.ndarray, drone_enu: tuple[float, float, float], yaw_enu: float,
-                   v_max_deg: float, beam_step_deg: float) -> tuple[np.ndarray, np.ndarray]:
+                   v_max_deg: float, beam_step_deg: float, min_range: float = SELF_FILTER_RADIUS_M
+                   ) -> tuple[np.ndarray, np.ndarray]:
     """Rotate sensor-frame points (x forward, y left, z up) into the cage frame.
 
-    Roll and pitch are ignored (small in hover/cruise). Returns world points and
-    a mask of points that came from the highest beam.
+    Points closer than ``min_range`` (the drone itself) and non-finite points (no return)
+    are dropped. Roll and pitch are ignored (small in hover/cruise). Returns world points
+    and a mask of points that came from the highest beam.
     """
     pts = np.asarray(points_sensor, dtype=float).reshape(-1, 3)
     finite = np.isfinite(pts).all(axis=1)
     pts = pts[finite]
+    pts = pts[np.linalg.norm(pts, axis=1) >= min_range]
     c, s = math.cos(yaw_enu), math.sin(yaw_enu)
     world = np.empty_like(pts)
     world[:, 0] = drone_enu[0] + c * pts[:, 0] - s * pts[:, 1]

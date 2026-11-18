@@ -39,6 +39,16 @@ def test_lidar_rotation_and_top_beam():
     assert top.tolist() == [False, True]
 
 
+def test_lidar_drops_hits_on_the_drone_itself():
+    # Regression (first Gazebo flight): hits on the drone's own motors/props, 0.25-0.4 m from the
+    # lidar, became an obstacle at flight altitude and the mission went to HOLD right after take-off.
+    motor = [0.174, 0.174, -0.09]  # x500 motor relative to the lidar
+    pts = np.array([motor, [0.3, -0.2, -0.05], [5.0, 0.0, -2.0]])
+    world, _ = lidar_to_world(pts, (0.0, -18.0, 8.0), 0.0, v_max_deg=10.0, beam_step_deg=4.67)
+    assert world.shape == (1, 3)
+    np.testing.assert_allclose(world[0], [5.0, -18.0, 6.0], atol=1e-9)
+
+
 def test_cloud_xyz_accepts_gazebo_lidar_layout():
     # Regression: Gazebo's cloud has x, y, z (float32) plus intensity (float64) and ring (uint16);
     # read_points_numpy refused it and the mission node died on the first scan.

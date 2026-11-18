@@ -57,3 +57,13 @@ def test_rain_switching_on_over_drone_triggers_escape(cfg: Config) -> None:
     result = run_mission(sc, cfg)
     assert result.metrics["rain_exposure_s"] <= 5.0
     assert result.metrics["landed_home"]
+
+
+def test_hold_is_left_as_soon_as_a_way_home_exists(cfg: Config) -> None:
+    # Regression (first Gazebo flight): after a failed return the drone hovered in HOLD forever.
+    ctrl = MissionController(cfg, (0.0, -18.0))
+    ctrl.phase = Phase.HOLD
+    sp = ctrl.update(20.0, np.array([0.0, -10.0, 8.0]))
+    assert ctrl.phase in (Phase.RETURN, Phase.LAND)
+    assert (sp.x, sp.y) != (0.0, -10.0) or sp.z != 8.0  # it is heading somewhere, not holding
+    assert any(e.kind == "phase" and "hold ->" in e.detail for e in ctrl.events)

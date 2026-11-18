@@ -30,6 +30,8 @@ from aufdeckung.planning.flightmap import FlightMap, build_flight_map, rain_mask
 from aufdeckung.scenario.model import RainZone
 from aufdeckung.sensors.camera import visible_cells
 
+HOLD_RETRY_S = 3.0
+
 
 class Phase(str, Enum):
     TAKEOFF = "takeoff"
@@ -97,6 +99,7 @@ class MissionController:
         self._last_check = -math.inf
         self._last_cam = -math.inf
         self._last_replan = -math.inf
+        self._last_hold_try = -math.inf
         self._hold: tuple[float, float, float] | None = None
         self._last_plan_state: tuple[int, int] = (-1, -1)
         self._axis: str | None = None
@@ -137,6 +140,11 @@ class MissionController:
                 self._replan(t, p)
 
         self._check_time(t, p)
+        if self.phase == Phase.HOLD and t - self._last_hold_try >= HOLD_RETRY_S:
+            # HOLD means "no way home was found". The reason can be temporary (a rain zone, a map
+            # artefact that later scans correct), so keep looking instead of hovering forever.
+            self._last_hold_try = t
+            self._start_return(t, p)
         return self._step(t, p)
 
     @property

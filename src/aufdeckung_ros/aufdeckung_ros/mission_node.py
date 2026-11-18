@@ -38,6 +38,7 @@ from aufdeckung.planning.mission import MissionController, Phase
 from aufdeckung.scenario.io import load_scenario
 from aufdeckung.scenario.model import RainZone
 from aufdeckung_ros.conversions import (
+    SELF_FILTER_RADIUS_M,
     cage_enu_to_setpoint,
     cloud_xyz,
     heading_to_enu_yaw,
@@ -59,6 +60,7 @@ class AufdeckungNode(Node):
         self.declare_parameter("lidar_topic", "/lidar/points")
         self.declare_parameter("rate_hz", 10.0)
         self.declare_parameter("auto_start", True)
+        self.declare_parameter("lidar_self_filter", SELF_FILTER_RADIUS_M)
 
         cfg = Config()
         cfg_file = str(self.get_parameter("config_file").value)
@@ -84,6 +86,7 @@ class AufdeckungNode(Node):
         self.flight_mode = ""
         self._last_wait_log = -1e9
         self._last_retry = -1e9
+        self._events_logged = 0
         self.finished = False
 
         self.sp_pub = self.create_publisher(Vector4, "/drone/in/offboard/pos/ned", QUEUE)
@@ -157,7 +160,8 @@ class AufdeckungNode(Node):
         except Exception as exc:  # a bad scan must not take the whole mission down
             self.get_logger().error(f"lidar message skipped: {exc}", throttle_duration_sec=5.0)
             return
-        self.scan = lidar_to_world(pts, self.pos, self.yaw, self.cfg.lidar.v_max_deg, self.beam_step)
+        self.scan = lidar_to_world(pts, self.pos, self.yaw, self.cfg.lidar.v_max_deg, self.beam_step,
+                                   min_range=float(self.get_parameter("lidar_self_filter").value))
 
     def on_rain(self, msg: Float32MultiArray) -> None:
         vals = list(msg.data)
@@ -193,6 +197,11 @@ class AufdeckungNode(Node):
         t = now - (self.t0 or now)
         scan, self.scan = self.scan, None
         sp = self.ctrl.update(t, np.array(self.pos), scan, self.rain)
+        for ev in self.ctrl.events[self._events_logged:]:
+            log = self.get_logger().warn if ev.kind in ("planning_error", "return_failed") else \
+                self.get_logger().info
+            log(f"[{ev.t:6.1f}s] {ev.kind}: {ev.detail}")
+        self._events_logged = len(self.ctrl.events)
         self.phase_pub.publish(String(data=sp.phase.value))
         if sp.phase == Phase.DONE:
             self.get_logger().info("mission done: landing")
