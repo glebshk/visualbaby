@@ -31,6 +31,20 @@ def heading_to_enu_yaw(heading_deg: float) -> float:
     return math.radians(90.0 - heading_deg)
 
 
+def cloud_xyz(points: object) -> np.ndarray:
+    """(N, 3) float array of x, y, z from what ``point_cloud2.read_points`` returns.
+
+    Gazebo's lidar cloud also carries intensity and ring fields of other types, which
+    ``read_points_numpy`` refuses (it needs one datatype for all fields), so the node reads a
+    structured array instead. Older ROS versions return a list of tuples; both are accepted.
+    """
+    if isinstance(points, np.ndarray) and points.dtype.names:
+        xyz = np.column_stack([points[name].astype(float).ravel() for name in ("x", "y", "z")])
+    else:
+        xyz = np.array([(p[0], p[1], p[2]) for p in points], dtype=float)  # type: ignore[attr-defined]
+    return xyz.reshape(-1, 3)
+
+
 def lidar_to_world(points_sensor: np.ndarray, drone_enu: tuple[float, float, float], yaw_enu: float,
                    v_max_deg: float, beam_step_deg: float) -> tuple[np.ndarray, np.ndarray]:
     """Rotate sensor-frame points (x forward, y left, z up) into the cage frame.

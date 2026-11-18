@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from aufdeckung_ros.conversions import (
     cage_enu_to_setpoint,
+    cloud_xyz,
     heading_to_enu_yaw,
     lidar_to_world,
     px4_ned_to_cage_enu,
@@ -36,3 +37,22 @@ def test_lidar_rotation_and_top_beam():
     assert world.shape == (2, 3)
     np.testing.assert_allclose(world[0], [1.0, 12.0, 8.0], atol=1e-9)
     assert top.tolist() == [False, True]
+
+
+def test_cloud_xyz_accepts_gazebo_lidar_layout():
+    # Regression: Gazebo's cloud has x, y, z (float32) plus intensity (float64) and ring (uint16);
+    # read_points_numpy refused it and the mission node died on the first scan.
+    dtype = np.dtype([("x", np.float32), ("y", np.float32), ("z", np.float32),
+                      ("intensity", np.float64), ("ring", np.uint16)])
+    cloud = np.array([(1.0, 2.0, 3.0, 0.5, 7), (4.0, 5.0, np.inf, 0.1, 8)], dtype=dtype)
+    xyz = cloud_xyz(cloud[["x", "y", "z"]])
+    assert xyz.shape == (2, 3) and xyz.dtype == float
+    assert xyz[0].tolist() == [1.0, 2.0, 3.0] and np.isinf(xyz[1, 2])
+    assert cloud_xyz(cloud).shape == (2, 3)  # also when the extra fields are still present
+
+
+def test_cloud_xyz_accepts_tuples_and_empty_clouds():
+    assert cloud_xyz([(1.0, 2.0, 3.0), (4.0, 5.0, 6.0)]).tolist() == [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
+    assert cloud_xyz([]).shape == (0, 3)
+    empty = np.zeros(0, dtype=[("x", np.float32), ("y", np.float32), ("z", np.float32)])
+    assert cloud_xyz(empty).shape == (0, 3)

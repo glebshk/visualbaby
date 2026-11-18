@@ -39,6 +39,7 @@ from aufdeckung.scenario.io import load_scenario
 from aufdeckung.scenario.model import RainZone
 from aufdeckung_ros.conversions import (
     cage_enu_to_setpoint,
+    cloud_xyz,
     heading_to_enu_yaw,
     lidar_to_world,
     px4_ned_to_cage_enu,
@@ -150,7 +151,12 @@ class AufdeckungNode(Node):
     def on_lidar(self, msg: PointCloud2) -> None:
         if self.pos is None:
             return
-        pts = point_cloud2.read_points_numpy(msg, field_names=("x", "y", "z"), skip_nans=True)
+        try:
+            raw = point_cloud2.read_points(msg, field_names=("x", "y", "z"), skip_nans=True)
+            pts = cloud_xyz(raw)
+        except Exception as exc:  # a bad scan must not take the whole mission down
+            self.get_logger().error(f"lidar message skipped: {exc}", throttle_duration_sec=5.0)
+            return
         self.scan = lidar_to_world(pts, self.pos, self.yaw, self.cfg.lidar.v_max_deg, self.beam_step)
 
     def on_rain(self, msg: Float32MultiArray) -> None:
