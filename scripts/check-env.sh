@@ -43,8 +43,27 @@ else
         IMG=ghcr.io/aachen-drone-development-initiative/imav/dev:latest
         docker image inspect "$IMG" >/dev/null 2>&1 && ok "dev image present: $IMG" \
             || bad "dev image missing: docker login ghcr.io, then docker pull $IMG"
+        if [ "$(uname -s)" = Linux ] && ! grep -qi microsoft /proc/version 2>/dev/null; then
+            # Native Linux: Docker Desktop runs containers in its own VM, which hides the GPU,
+            # the X display and the host network from them. Docker Engine is needed here.
+            CTX=$(docker context show 2>/dev/null)
+            [ "$CTX" = desktop-linux ] \
+                && bad "Docker Desktop in use (context '$CTX'): run 'docker context use default' (Docker Engine)" \
+                || ok "Docker Engine (context '${CTX:-default}')"
+            [ -e /dev/dri ] && ok "GPU device /dev/dri present" || bad "/dev/dri missing: no GPU driver loaded"
+            command -v xhost >/dev/null && ok "xhost available (lets the container open windows)" \
+                || bad "xhost missing: sudo apt install -y x11-xserver-utils"
+        fi
+        ROOT=$(docker info -f '{{.DockerRootDir}}' 2>/dev/null)
+        if [ -n "$ROOT" ]; then
+            FREE_GB=$(df -BG --output=avail "$ROOT" 2>/dev/null | tail -1 | tr -dc 0-9)
+            if [ -n "$FREE_GB" ]; then
+                [ "$FREE_GB" -ge 40 ] && ok "${FREE_GB} GB free for Docker ($ROOT)" \
+                    || info "only ${FREE_GB} GB free for Docker ($ROOT): image + PX4 build need ~40 GB"
+            fi
+        fi
     else
-        bad "docker not installed (sudo apt install -y docker.io)"
+        bad "docker not installed (see docs: install Docker Engine, not Docker Desktop)"
     fi
     command -v code >/dev/null && ok "VS Code installed" || info "VS Code not found (needed for 'Reopen in Container')"
     command -v nvidia-smi >/dev/null && info "NVIDIA GPU found: needs nvidia-container-toolkit for GPU in Docker"
