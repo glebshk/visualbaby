@@ -6,6 +6,9 @@ windows:
       layout: even-vertical
       panes:
         - gazebo:
+            # Mouse mode: click a window name in the bottom bar or a pane to switch, scroll with
+            # the wheel. VS Code's terminal swallows Ctrl+B (it toggles the sidebar there).
+            - tmux set -g mouse on; tmux set -g history-limit 50000
             - source install/setup.bash
             - ./scripts/launch-gazebo-default.sh $AUFDECKUNG_WORLD
         - px4:
