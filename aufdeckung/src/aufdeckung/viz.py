@@ -22,10 +22,16 @@ TARGET_COLORS = {"class1": "#d32f2f", "class2": "#1565c0", "special": "#ff8f00"}
 
 
 def _plt() -> Any:
+    import warnings
+
     import matplotlib
 
     matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
+    with warnings.catch_warnings():
+        # In the ROS image, Ubuntu's old mpl_toolkits sits next to the pip matplotlib, so the 3D
+        # projection cannot load. The plots here are 2D, so that warning is noise.
+        warnings.filterwarnings("ignore", message="Unable to import Axes3D")
+        import matplotlib.pyplot as plt
 
     return plt
 

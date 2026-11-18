@@ -20,7 +20,6 @@ setup(
     maintainer_email="team@example.com",
     description="ROS 2 wrapper around the aufdeckung coverage planner",
     license="Apache-2.0",
-    tests_require=["pytest"],
     entry_points={
         "console_scripts": [
             "mission = aufdeckung_ros.mission_node:main",
