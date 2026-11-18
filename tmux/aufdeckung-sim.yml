@@ -9,6 +9,8 @@ windows:
             # Mouse mode: click a window name in the bottom bar or a pane to switch, scroll with
             # the wheel. VS Code's terminal swallows Ctrl+B (it toggles the sidebar there).
             - tmux set -g mouse on; tmux set -g history-limit 50000
+            # Narrow terminals cut off the window list: show only the window names.
+            - tmux set -g status-left ''; tmux set -g status-right ' click a window name to switch '
             - source install/setup.bash
             - ./scripts/launch-gazebo-default.sh $AUFDECKUNG_WORLD
         - px4:

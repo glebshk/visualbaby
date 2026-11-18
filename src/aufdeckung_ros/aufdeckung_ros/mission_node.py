@@ -198,9 +198,7 @@ class AufdeckungNode(Node):
         scan, self.scan = self.scan, None
         sp = self.ctrl.update(t, np.array(self.pos), scan, self.rain)
         for ev in self.ctrl.events[self._events_logged:]:
-            log = self.get_logger().warn if ev.kind in ("planning_error", "return_failed") else \
-                self.get_logger().info
-            log(f"[{ev.t:6.1f}s] {ev.kind}: {ev.detail}")
+            self._log_event(ev.t, ev.kind, ev.detail)
         self._events_logged = len(self.ctrl.events)
         self.phase_pub.publish(String(data=sp.phase.value))
         if sp.phase == Phase.DONE:
@@ -209,6 +207,15 @@ class AufdeckungNode(Node):
             self.finished = True
             return
         self.publish_setpoint(sp.x, sp.y, sp.z)
+
+    def _log_event(self, t: float, kind: str, detail: str) -> None:
+        # rclpy pins one severity to each logging call site ("Logger severity cannot be changed
+        # between calls"), so warnings and infos need separate calls, not one shared one.
+        text = f"[{t:6.1f}s] {kind}: {detail}"
+        if kind in ("planning_error", "return_failed"):
+            self.get_logger().warning(text)
+        else:
+            self.get_logger().info(text)
 
     def publish_setpoint(self, x: float, y: float, z: float) -> None:
         n, e, alt, yaw = cage_enu_to_setpoint(x, y, z, self.home, YAW_DEG)
