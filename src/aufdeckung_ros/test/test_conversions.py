@@ -112,3 +112,15 @@ def test_tilt_deg():
     assert tilt_deg(_q()) == pytest.approx(0.0, abs=1e-6)
     assert tilt_deg(_q(pitch_deg=10.0, yaw_deg=123.0)) == pytest.approx(10.0)
     assert tilt_deg(_q(roll_deg=-20.0)) == pytest.approx(20.0)
+
+
+def test_returns_at_the_range_limit_are_no_returns():
+    # A beam into the open sky can come back as a point at the 30 m limit; kept, it would be a
+    # ring of obstacles 30 m away (up to 13 m tall for the upward beams) in every scan.
+    up = math.radians(10.0)
+    pts = np.array([[30.0 * math.cos(up), 0.0, 30.0 * math.sin(up)],  # no return, at the limit
+                    [29.9, 0.0, 0.0],                                   # also counts as limit
+                    [12.0, 3.0, -1.0]])                                 # a real hit
+    world, _ = lidar_to_world(pts, (0.0, 0.0, 8.0), 0.0, 10.0, 4.67, max_range=30.0)
+    assert world.shape == (1, 3)
+    np.testing.assert_allclose(world[0], [12.0, 3.0, 7.0], atol=1e-9)

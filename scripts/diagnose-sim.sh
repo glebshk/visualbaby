@@ -85,6 +85,9 @@ if tmux has-session -t aufdeckung-sim 2>/dev/null; then
     tmux capture-pane -p -t aufdeckung-sim:ros2.0 -S -200 2>/dev/null | grep -v "^$" | tail -30 | sed 's/^/     /'
 fi
 
+echo "== 7. snapshot: raw lidar, tilt and the mission node's height map"
+python3 scripts/sim_snapshot.py 2>&1 | sed 's/^/  /'
+
 echo
 if [ -z "$FIRST_BAD" ]; then echo "All links OK."
 else echo "FIRST BROKEN LINK: $FIRST_BAD"; fi

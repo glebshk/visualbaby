@@ -177,7 +177,7 @@ class AufdeckungNode(Node):
                                       "tilt will put ground hits too high (rebuild px4_to_ros2?)")
         self.scan = lidar_to_world(pts, self.pos, self.yaw, self.cfg.lidar.v_max_deg, self.beam_step,
                                    min_range=float(self.get_parameter("lidar_self_filter").value),
-                                   attitude_ned=attitude)
+                                   attitude_ned=attitude, max_range=self.cfg.lidar.max_range)
 
     def on_rain(self, msg: Float32MultiArray) -> None:
         vals = list(msg.data)

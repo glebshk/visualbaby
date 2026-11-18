@@ -49,6 +49,7 @@ def cloud_xyz(points: object) -> np.ndarray:
 # inside its field of view. Those self-hits looked like an obstacle at flight altitude right where
 # the drone is, so its own cell and the take-off area became unflyable (mission went to HOLD).
 SELF_FILTER_RADIUS_M = 0.6
+MAX_RANGE_MARGIN_M = 0.5  # returns this close to the range limit count as "no return"
 
 
 def quat_to_matrix(q: tuple[float, float, float, float]) -> np.ndarray:
@@ -70,8 +71,8 @@ def tilt_deg(q_ned: tuple[float, float, float, float]) -> float:
 
 def lidar_to_world(points_sensor: np.ndarray, drone_enu: tuple[float, float, float], yaw_enu: float,
                    v_max_deg: float, beam_step_deg: float, min_range: float = SELF_FILTER_RADIUS_M,
-                   attitude_ned: tuple[float, float, float, float] | None = None
-                   ) -> tuple[np.ndarray, np.ndarray]:
+                   attitude_ned: tuple[float, float, float, float] | None = None,
+                   max_range: float | None = None) -> tuple[np.ndarray, np.ndarray]:
     """Rotate sensor-frame points (x forward, y left, z up) into the cage frame.
 
     ``attitude_ned`` is PX4's attitude quaternion (w, x, y, z): the rotation from the body frame
@@ -79,13 +80,19 @@ def lidar_to_world(points_sensor: np.ndarray, drone_enu: tuple[float, float, flo
     it only ``yaw_enu`` is. Roll and pitch matter: a multicopter tilts 10-20 deg when it
     accelerates, and ignoring 10 deg puts a ground hit 20 m away 3.5 m too high, a phantom wall.
 
-    Points closer than ``min_range`` (the drone itself) and non-finite points (no return)
-    are dropped. Returns world points and a mask of points that came from the highest beam.
+    Points closer than ``min_range`` (the drone itself), non-finite points and points at the
+    sensor's ``max_range`` are dropped: a beam that hits nothing may be reported at the range
+    limit instead of as infinite, and those would draw a ring of 30 m-away "walls" every scan.
+    Returns world points and a mask of points that came from the highest beam.
     """
     pts = np.asarray(points_sensor, dtype=float).reshape(-1, 3)
     finite = np.isfinite(pts).all(axis=1)
     pts = pts[finite]
-    pts = pts[np.linalg.norm(pts, axis=1) >= min_range]
+    rng = np.linalg.norm(pts, axis=1)
+    keep = rng >= min_range
+    if max_range is not None:
+        keep &= rng < max_range - MAX_RANGE_MARGIN_M
+    pts = pts[keep]
     world = np.empty_like(pts)
     if attitude_ned is not None:
         frd = pts * np.array([1.0, -1.0, -1.0])  # sensor FLU -> body FRD
