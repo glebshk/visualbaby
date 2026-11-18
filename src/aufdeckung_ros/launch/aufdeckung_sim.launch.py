@@ -6,6 +6,7 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 
 
 def generate_launch_description():
@@ -25,11 +26,13 @@ def generate_launch_description():
         Node(package="px4_to_ros2", executable="px4", output="screen",
              parameters=[{"envirement": "simulator"}]),
         Node(package="aufdeckung_ros", executable="mission", output="screen",
+             # Explicit types: launch arguments are otherwise parsed as YAML, which turns an empty
+             # string into None and "3" into an int; either makes the node exit at startup.
              parameters=[{
-                 "home_x": LaunchConfiguration("home_x"),
-                 "home_y": LaunchConfiguration("home_y"),
-                 "prior_scenario": LaunchConfiguration("prior_scenario"),
-                 "config_file": LaunchConfiguration("config_file"),
+                 "home_x": ParameterValue(LaunchConfiguration("home_x"), value_type=float),
+                 "home_y": ParameterValue(LaunchConfiguration("home_y"), value_type=float),
+                 "prior_scenario": ParameterValue(LaunchConfiguration("prior_scenario"), value_type=str),
+                 "config_file": ParameterValue(LaunchConfiguration("config_file"), value_type=str),
                  "lidar_topic": "/lidar/points",
              }]),
     ])

@@ -13,11 +13,14 @@ bad()  { printf "  [FAIL] %s\n" "$1"; [ -z "$FIRST_BAD" ] && FIRST_BAD="$1"; }
 info() { printf "  [info] %s\n" "$1"; }
 
 # Prints the first message on a ROS topic (or nothing within the timeout).
-once() { timeout "${2:-5}" ros2 topic echo --once "$1" 2>/dev/null | head -"${3:-20}"; }
+once() { timeout "${2:-5}" ros2 topic echo --once "$1" 2>/dev/null | grep -v "^WARNING" | head -"${3:-20}"; }
 field() { grep -m1 -E "^ *$1:" | sed "s/^ *$1: *//"; }
 
 echo "== 1. Gazebo"
-if pgrep -f "gz sim" >/dev/null; then ok "gz sim is running"; else bad "Gazebo is not running"; fi
+N_GZ=$(pgrep -fc "gz sim" 2>/dev/null); N_GZ=${N_GZ:-0}
+# One run shows up as up to two processes (server + GUI); more hints at a leftover run.
+if [ "$N_GZ" -gt 2 ]; then bad "$N_GZ Gazebo processes: probably an old run is still alive (./scripts/stop-sim.sh, relaunch)"
+elif [ "$N_GZ" -gt 0 ]; then ok "gz sim is running ($N_GZ processes)"; else bad "Gazebo is not running"; fi
 if gz model --list 2>/dev/null | grep -qw x500; then ok "drone x500 is in the world"
 else bad "no x500 in world '$WORLD' (spawn failed: scroll up in the PX4 pane)"; fi
 STATS=$(timeout 5 gz topic -e -t "/world/$WORLD/stats" -n 1 2>/dev/null)
@@ -30,7 +33,9 @@ if timeout 5 gz topic -e -t /lidar/points -n 1 >/dev/null 2>&1; then ok "lidar p
 else bad "no data on Gazebo topic /lidar/points"; fi
 
 echo "== 2. PX4"
-if pgrep -x px4 >/dev/null; then ok "PX4 SITL is running"; else bad "PX4 is not running (PX4 pane)"; fi
+N_PX4=$(pgrep -xc px4 2>/dev/null); N_PX4=${N_PX4:-0}
+if [ "$N_PX4" -gt 1 ]; then bad "$N_PX4 PX4 instances running: an old run is still alive (./scripts/stop-sim.sh, then relaunch)"
+elif [ "$N_PX4" -eq 1 ]; then ok "PX4 SITL is running"; else bad "PX4 is not running (PX4 pane)"; fi
 if [ -x "$PX4_BIN/px4-listener" ]; then
     VS=$("$PX4_BIN/px4-listener" vehicle_status -n 1 2>/dev/null)
     ARM=$(echo "$VS" | field arming_state)
@@ -47,7 +52,8 @@ NODES=$(timeout 10 ros2 node list 2>/dev/null)
 for n in px4_ros2 aufdeckung_mission; do
     echo "$NODES" | grep -q "/$n$" && ok "node /$n is running" || bad "node /$n is not running (ros2 window, top pane)"
 done
-echo "$NODES" | grep -q parameter_bridge && ok "gz-ROS bridge is running" || bad "gz-ROS bridge (parameter_bridge) is not running"
+echo "$NODES" | grep -qE "ros_gz_bridge|parameter_bridge" && ok "gz-ROS bridge is running" \
+    || bad "gz-ROS bridge (ros_gz_bridge) is not running"
 
 echo "== 4. PX4 -> ROS (px4_to_ros2 telemetry)"
 POS=$(once /drone/out/pos/ned)
@@ -66,15 +72,19 @@ echo "== 5. mission node -> PX4"
 PHASE=$(once /aufdeckung/phase | field data)
 [ -n "$PHASE" ] && ok "mission phase: $PHASE" || bad "no mission phase: the mission node has not started the mission (see its 'waiting:' log line)"
 SP=$(once /drone/in/offboard/pos/ned)
-[ -n "$SP" ] && ok "setpoints sent (n=$(echo "$SP" | field x) e=$(echo "$SP" | field y) alt=$(echo "$SP" | field z))" \
+echo "$SP" | grep -q "x:" && ok "setpoints sent (n=$(echo "$SP" | field x) e=$(echo "$SP" | field y) alt=$(echo "$SP" | field z))" \
     || bad "no setpoints on /drone/in/offboard/pos/ned"
 
 echo "== 6. last log lines of the mission node and the PX4 bridge"
 LOGDIR=$(ls -td ~/.ros/log/*/ 2>/dev/null | head -1)
 if [ -n "$LOGDIR" ]; then
-    grep -hE "waiting:|failed|armed|flight mode|not airborne|PX4 connected|Connect|Error|error|Traceback" \
+    grep -hE "waiting:|failed|armed|flight mode|not airborne|PX4 connected|Connect|Error|error|Traceback|died" \
         "$LOGDIR"/*.log 2>/dev/null | tail -15 | sed 's/^/     /'
 else info "no ROS log directory found"; fi
+if tmux has-session -t aufdeckung-sim 2>/dev/null; then
+    echo "  -- mission pane (ros2 window, top), last lines:"
+    tmux capture-pane -p -t aufdeckung-sim:ros2.0 -S -200 2>/dev/null | grep -v "^$" | tail -30 | sed 's/^/     /'
+fi
 
 echo
 if [ -z "$FIRST_BAD" ]; then echo "All links OK."

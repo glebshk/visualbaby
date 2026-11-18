@@ -3,6 +3,9 @@
 #   ./scripts/launch-sim-aufdeckung.sh [preset] [seed]
 # Presets: sparse urban_ring dense_urban center_tower street mixed
 set -e
+# An old Gazebo or PX4 still running publishes on the same topics: PX4 then reports sensor
+# timestamp errors and TIMEOUTs. Start from a clean slate.
+"$(dirname "$0")/stop-sim.sh" >/dev/null
 export AUFDECKUNG_PRESET=${1:-mixed}
 export AUFDECKUNG_SEED=${2:-0}
 export AUFDECKUNG_REPO=$PWD
