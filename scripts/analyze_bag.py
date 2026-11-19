@@ -114,10 +114,13 @@ class Truth:
     def __init__(self, scenario_path: Path, cfg: Config) -> None:
         self.sc = load_scenario(scenario_path)
         self.spec = GridSpec.for_arena(cfg.arena, cfg.planner.grid_res)
-        true_h = rasterize(self.sc.obstacles, self.spec)
+        from aufdeckung.geometry import Box
+        targets = [Box(t.x, t.y, t.size, t.size, max(t.size * 0.6, 0.15), kind="target")
+                   for t in self.sc.targets]  # exported to Gazebo as small boxes
+        true_h = rasterize(list(self.sc.obstacles) + targets, self.spec)
         # One cell of slack: a hit on a wall face may fall into the neighbouring cell.
         self.allowed = max_filter_disk(true_h, 1.5) + PHANTOM_MARGIN_M
-        self.inside = cage_mask(self.spec, cfg.arena, margin=1.0)
+        self.inside = cage_mask(self.spec, cfg.arena, margin=2.5)  # net and poles are not counted
         self.true_h = true_h
 
     def phantoms(self, world: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -137,6 +140,29 @@ def convert(pts, pos, yaw, att, cfg, rot=0.0, mirror=False, attitude=True):  # t
     world, _ = lidar_to_world(_rot_z(pts, rot, mirror), pos, yaw, cfg.lidar.v_max_deg, beam_step,
                               attitude_ned=att if attitude else None, max_range=cfg.lidar.max_range)
     return world
+
+
+def _shifted(world: np.ndarray, pos, yaw_err_deg: float, dx: float, dy: float) -> np.ndarray:  # type: ignore[no-untyped-def]
+    """Undo a heading error (rotate about the drone) and a position error (shift)."""
+    out = world.copy()
+    if yaw_err_deg:
+        c, s = math.cos(math.radians(yaw_err_deg)), math.sin(math.radians(yaw_err_deg))
+        rx, ry = world[:, 0] - pos[0], world[:, 1] - pos[1]
+        out[:, 0], out[:, 1] = pos[0] + c * rx - s * ry, pos[1] + s * rx + c * ry
+    out[:, 0] += dx
+    out[:, 1] += dy
+    return out
+
+
+def _rate(bag, truth, cfg, home, yaw_err=0.0, dx=0.0, dy=0.0, every=4) -> float:  # type: ignore[no-untyped-def]
+    n = ph = 0
+    for k, (_t, pts, pos, yaw, att) in enumerate(scan_inputs(bag, home, 0.0)):
+        if k % every:
+            continue
+        c, p = truth.phantoms(_shifted(convert(pts, pos, yaw, att, cfg), pos, yaw_err, dx, dy))
+        n += int(c.sum())
+        ph += int(p.sum())
+    return 100 * ph / max(n, 1)
 
 
 def tilt_of(att) -> float:  # type: ignore[no-untyped-def]
@@ -209,6 +235,20 @@ def analyze(bag: dict, truth: Truth, cfg: Config, home: tuple[float, float], plo
             n += int(c.sum())
             ph += int(p.sum())
         print(f"    {lag:+.1f} s: {100 * ph / max(n, 1):6.2f} %")
+
+    print("heading error sweep (rotate points about the drone; the minimum is the real error):")
+    coarse = {e: _rate(bag, truth, cfg, home, yaw_err=e) for e in range(-20, 21, 2)}
+    best = min(coarse, key=lambda e: (round(coarse[e], 2), abs(e)))
+    fine = {best + d / 2: _rate(bag, truth, cfg, home, yaw_err=best + d / 2) for d in range(-3, 4)}
+    best_yaw = min(fine, key=lambda e: (round(fine[e], 2), abs(e)))
+    print("    " + "  ".join(f"{e:+d}:{r:.1f}%" for e, r in coarse.items()))
+    print(f"    BEST heading correction {best_yaw:+.1f} deg -> {fine[best_yaw]:.2f} % phantoms "
+          f"(0 deg: {coarse[0]:.2f} %)")
+    print(f"position error sweep at {best_yaw:+.1f} deg (dx, dy in m):")
+    grid = {(dx, dy): _rate(bag, truth, cfg, home, yaw_err=best_yaw, dx=dx, dy=dy)
+            for dx in (-1.0, -0.5, 0.0, 0.5, 1.0) for dy in (-1.0, -0.5, 0.0, 0.5, 1.0)}
+    (bx, by) = min(grid, key=lambda k: (round(grid[k], 2), abs(k[0]) + abs(k[1])))
+    print(f"    BEST shift dx={bx:+.1f} dy={by:+.1f} -> {grid[(bx, by)]:.2f} % (no shift: {grid[(0.0, 0.0)]:.2f} %)")
 
     worst = sorted(rows, key=lambda r: -r["ph"])[:5]
     print("worst scans (time since first scan, drone position, tilt, phantoms):")

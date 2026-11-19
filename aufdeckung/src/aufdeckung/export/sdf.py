@@ -105,6 +105,24 @@ def _static_model(world: ET.Element, name: str, shape: Shape, rgb: tuple[float, 
         _sub(vis, "transparency", _f(1.0 - alpha))
 
 
+# Earth's field at the cage (WMM, Braunschweig 52.31 N 10.56 E, 2027): declination, inclination,
+# total intensity. PX4 corrects the compass with the declination it looks up for the GPS position, so
+# the simulated field must point the same way, or every heading (and every lidar point) is off.
+# PX4's example worlds use a Zurich-era field pointing ~15 deg east of north: a ~10 deg heading error.
+MAG_DECLINATION_DEG = 4.6
+MAG_INCLINATION_DEG = 67.9
+MAG_TOTAL_T = 49.9e-6
+
+
+def _magnetic_field_enu() -> str:
+    """World magnetic field vector (east, north, up) in tesla, as SDF expects it."""
+    horizontal = MAG_TOTAL_T * math.cos(math.radians(MAG_INCLINATION_DEG))
+    east = horizontal * math.sin(math.radians(MAG_DECLINATION_DEG))
+    north = horizontal * math.cos(math.radians(MAG_DECLINATION_DEG))
+    up = -MAG_TOTAL_T * math.sin(math.radians(MAG_INCLINATION_DEG))
+    return f"{east:.4e} {north:.4e} {up:.4e}"
+
+
 def scenario_to_sdf(sc: Scenario, arena: ArenaConfig, world_name: str = "aufdeckung") -> str:
     root = ET.Element("sdf", version="1.10")
     world = _sub(root, "world", name=world_name)
@@ -117,7 +135,7 @@ def scenario_to_sdf(sc: Scenario, arena: ArenaConfig, world_name: str = "aufdeck
     sensors = _sub(world, "plugin", name="gz::sim::systems::Sensors", filename="gz-sim-sensors-system")
     _sub(sensors, "render_engine", "ogre2")
     _sub(world, "gravity", "0 0 -9.8")
-    _sub(world, "magnetic_field", "6e-06 2.3e-05 -4.2e-05")
+    _sub(world, "magnetic_field", _magnetic_field_enu())
     _sub(world, "atmosphere", type="adiabatic")
     scene = _sub(world, "scene")
     _sub(scene, "grid", "false")
