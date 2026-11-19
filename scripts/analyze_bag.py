@@ -135,10 +135,11 @@ class Truth:
         return counted, phantom
 
 
-def convert(pts, pos, yaw, att, cfg, rot=0.0, mirror=False, attitude=True):  # type: ignore[no-untyped-def]
+def convert(pts, pos, yaw, att, cfg, rot=0.0, mirror=False, attitude=True, max_range=None):  # type: ignore[no-untyped-def]
     beam_step = (cfg.lidar.v_max_deg - cfg.lidar.v_min_deg) / max(cfg.lidar.v_samples - 1, 1)
     world, _ = lidar_to_world(_rot_z(pts, rot, mirror), pos, yaw, cfg.lidar.v_max_deg, beam_step,
-                              attitude_ned=att if attitude else None, max_range=cfg.lidar.max_range)
+                              attitude_ned=att if attitude else None,
+                              max_range=max_range or cfg.lidar.max_range)
     return world
 
 
@@ -255,6 +256,17 @@ def analyze(bag: dict, truth: Truth, cfg: Config, home: tuple[float, float], plo
         results[name] = 100 * ph / max(n, 1)
         print(f"    {name:28s} {results[name]:6.2f} %")
     latency_report(bag)
+    # The mission node's mapping gates (mapping_max_tilt_deg, mapping_max_range), as it maps now.
+    n = ph = skipped = 0
+    for _t, pts, pos, yaw, att in scan_inputs(bag, home, 0.0):
+        if att is not None and tilt_of(att) > 12.0:
+            skipped += 1
+            continue
+        c, p = truth.phantoms(convert(pts, pos, yaw, att, cfg, max_range=20.0))
+        n += int(c.sum())
+        ph += int(p.sum())
+    print(f"WITH THE NODE'S GATES (tilt <= 12 deg, range < 20 m): {100 * ph / max(n, 1):.2f} % phantoms, "
+          f"{skipped} of {len(bag['/lidar/points'])} scans skipped")
 
     print("heading error sweep (rotate points about the drone; the minimum is the real error):")
     coarse = {e: _rate(bag, truth, cfg, home, yaw_err=e) for e in range(-20, 21, 2)}

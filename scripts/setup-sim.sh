@@ -18,6 +18,24 @@ if ! python3 -m pip install -q -e "aufdeckung[viz]" >"$LOG" 2>&1; then
 fi
 python3 -c "import aufdeckung.config" || { echo "aufdeckung is not importable"; exit 1; }
 
+# The devcontainers write /root/.ros/fastdds.xml with an empty <userTransports/>, which this Fast DDS
+# rejects: every ROS program then prints four "XMLPARSER Error" lines and falls back to defaults.
+# Same intent (built-in transports), valid XML:
+if [ -n "${FASTRTPS_DEFAULT_PROFILES_FILE:-}" ]; then
+    mkdir -p "$(dirname "$FASTRTPS_DEFAULT_PROFILES_FILE")"
+    cat > "$FASTRTPS_DEFAULT_PROFILES_FILE" <<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<profiles xmlns="http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles">
+    <participant profile_name="default" is_default_profile="true">
+        <rtps>
+            <useBuiltinTransports>true</useBuiltinTransports>
+        </rtps>
+    </participant>
+</profiles>
+XML
+    echo "Fast DDS profile written: $FASTRTPS_DEFAULT_PROFILES_FILE"
+fi
+
 echo "Building ROS workspace..."
 source /opt/ros/humble/setup.bash
 colcon build --symlink-install

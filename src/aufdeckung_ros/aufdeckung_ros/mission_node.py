@@ -44,6 +44,7 @@ from aufdeckung_ros.conversions import (
     heading_to_enu_yaw,
     lidar_to_world,
     px4_ned_to_cage_enu,
+    tilt_deg,
 )
 
 QUEUE = 10
@@ -61,6 +62,11 @@ class AufdeckungNode(Node):
         self.declare_parameter("rate_hz", 10.0)
         self.declare_parameter("auto_start", True)
         self.declare_parameter("lidar_self_filter", SELF_FILTER_RADIUS_M)
+        # Mapping gates. Scans taken while the drone tilts hard carry the largest attitude errors
+        # (Gazebo flight: >15 deg tilt gave 55 % phantom points, <3 deg gave 5 %), and any angle
+        # error grows with distance. Skipping them costs little at 10 scans/s and 3 m/s.
+        self.declare_parameter("mapping_max_tilt_deg", 12.0)
+        self.declare_parameter("mapping_max_range", 20.0)
 
         cfg = Config()
         cfg_file = str(self.get_parameter("config_file").value)
@@ -85,6 +91,9 @@ class AufdeckungNode(Node):
         self.attitude: tuple[float, float, float, float] | None = None
         self.attitude_time = -1e9
         self._warned_no_attitude = False
+        self._scans_used = 0
+        self._scans_skipped = 0
+        self._last_gate_log = -1e9
         self.armed = False
         self.flight_mode = ""
         self._last_wait_log = -1e9
@@ -175,9 +184,19 @@ class AufdeckungNode(Node):
             self._warned_no_attitude = True
             self.get_logger().warning("no attitude on /drone/out/attitude: lidar is corrected for yaw only, "
                                       "tilt will put ground hits too high (rebuild px4_to_ros2?)")
+        max_tilt = float(self.get_parameter("mapping_max_tilt_deg").value)
+        if now - self._last_gate_log >= 10.0 and self._scans_used + self._scans_skipped:
+            self._last_gate_log = now
+            self.get_logger().info(f"lidar: {self._scans_used} scans mapped, {self._scans_skipped} skipped "
+                                   f"(tilt > {max_tilt:.0f} deg)")
+        if attitude is not None and tilt_deg(attitude) > max_tilt:
+            self._scans_skipped += 1
+            return
+        self._scans_used += 1
+        max_range = min(self.cfg.lidar.max_range, float(self.get_parameter("mapping_max_range").value))
         self.scan = lidar_to_world(pts, self.pos, self.yaw, self.cfg.lidar.v_max_deg, self.beam_step,
                                    min_range=float(self.get_parameter("lidar_self_filter").value),
-                                   attitude_ned=attitude, max_range=self.cfg.lidar.max_range)
+                                   attitude_ned=attitude, max_range=max_range)
 
     def on_rain(self, msg: Float32MultiArray) -> None:
         vals = list(msg.data)
