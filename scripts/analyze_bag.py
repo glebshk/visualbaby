@@ -439,6 +439,34 @@ def replay_blame(bag: dict, truth: Truth, cfg: Config, home: tuple[float, float]
         print(f"    saved {out}")
 
 
+def heading_timeline(bag: dict, truth: Truth, cfg: Config, home: tuple[float, float], every: int = 10) -> None:
+    """Best heading correction per scan over time: a constant value is a compass offset, a drifting or
+    jumping one points at the estimator (e.g. yaw not converged right after take-off)."""
+    print("== heading error over time (per scan: rotation about the drone that removes most phantoms)")
+    print("    t [s]   z [m]  tilt  PX4 heading  attitude yaw  best corr   phantoms before -> after")
+    head_t = np.array([t for t, _ in bag["/drone/out/heading"]])
+    t0 = bag["/lidar/points"][0][0] if bag["/lidar/points"] else 0.0
+    for k, (t, pts, pos, yaw, att) in enumerate(scan_inputs(bag, home, 0.0)):
+        if k % every:
+            continue
+        world = convert(pts, pos, yaw, att, cfg, max_range=20.0)
+        rates = {}
+        for e in range(-12, 13):
+            c, ph = truth.phantoms(_shifted(world, pos, float(e), 0.0, 0.0))
+            rates[e] = 100 * ph.sum() / max(int(c.sum()), 1)
+        lowest = min(rates.values())
+        plateau = [e for e, r in rates.items() if r <= lowest + 0.1]  # equally good corrections
+        best = int(round(float(np.median(plateau))))
+        ih = _latest(head_t, t)
+        px4_head = bag["/drone/out/heading"][ih][1].data if ih is not None else float("nan")
+        att_yaw = float("nan")
+        if att is not None:
+            w, x, y, z = att
+            att_yaw = math.degrees(math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z)))
+        print(f"    {t - t0:6.1f}  {pos[2]:5.1f}  {tilt_of(att):4.1f}   {px4_head:7.1f}      {att_yaw:7.1f}"
+              f"      {best:+3d} deg    {rates[0]:5.1f} % -> {rates[best]:5.1f} %")
+
+
 def inside_mask(ctrl, world: np.ndarray) -> np.ndarray:  # type: ignore[no-untyped-def]
     """The controller's known-structure filter as a mask (net, outside, ceiling)."""
     from aufdeckung.geometry import inside_with_margin
@@ -463,12 +491,14 @@ def main() -> int:
     home = (float(truth.sc.start[0]), float(truth.sc.start[1]))
     print(f"bag {args.bag}, arena {scenario.name}, home {home}")
     bag = read_bag(args.bag)
-    print("== matching scans to the drone state when they ARRIVED (old mission node)")
+    print("== matching scans to the drone state when they ARRIVED (mission node default)")
     MATCH["mode"] = "arrival"
-    replay_blame(bag, truth, cfg, home, None)
-    print("== matching scans to the drone state when they were TAKEN (current mission node)")
-    MATCH["mode"] = "capture"
     replay_blame(bag, truth, cfg, home, args.plot)
+    print("== matching scans to the drone state when they were TAKEN (lidar_time_matching:=capture)")
+    MATCH["mode"] = "capture"
+    replay_blame(bag, truth, cfg, home, None)
+    MATCH["mode"] = "arrival"  # what the mission node does by default
+    heading_timeline(bag, truth, cfg, home)
     if not args.replay_only:
         analyze(bag, truth, cfg, home, args.plot)
     return 0

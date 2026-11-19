@@ -69,6 +69,14 @@ class AufdeckungNode(Node):
         # error grows with distance. Skipping them costs little at 10 scans/s and 3 m/s.
         self.declare_parameter("mapping_max_tilt_deg", 12.0)
         self.declare_parameter("mapping_max_range", 20.0)
+        # false: fly on the prior (layout plan) only, no lidar mapping. Separates "does the mission
+        # fly" from "is the lidar map right" (Regelwerk 6.4: the layout plan is given in advance).
+        self.declare_parameter("use_lidar", True)
+        # "arrival": drone state when the scan arrives; "capture": at the scan's own stamp. Gazebo
+        # flights 3 and 4 mapped WORSE with "capture" (1991 -> 2540 and 719 -> 1121 wrongly blocking
+        # cells): in lockstep SITL the stamps are sim time, which runs unevenly against the wall
+        # clock, so their 0-0.8 s spread is not transport delay.
+        self.declare_parameter("lidar_time_matching", "arrival")
 
         cfg = Config()
         cfg_file = str(self.get_parameter("config_file").value)
@@ -192,10 +200,11 @@ class AufdeckungNode(Node):
             self.get_logger().error(f"lidar message skipped: {exc}", throttle_duration_sec=5.0)
             return
         now = self._now()
-        # Use the drone state from when the scan was TAKEN, not when it arrived (up to ~0.8 s later).
+        if not bool(self.get_parameter("use_lidar").value):
+            return
         stamp = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
         t_cap = now
-        if stamp > 0:
+        if stamp > 0 and str(self.get_parameter("lidar_time_matching").value) == "capture":
             self.capture_clock.observe(now, stamp)
             t_cap = min(self.capture_clock.capture_time(stamp), now)
         pos_cap = self.pos_hist.at(t_cap)

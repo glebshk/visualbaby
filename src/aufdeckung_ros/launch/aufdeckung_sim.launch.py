@@ -16,6 +16,8 @@ def generate_launch_description():
         DeclareLaunchArgument("home_y", default_value="-18.0"),
         DeclareLaunchArgument("prior_scenario", default_value=""),
         DeclareLaunchArgument("config_file", default_value=""),
+        DeclareLaunchArgument("use_lidar", default_value="true"),
+        DeclareLaunchArgument("lidar_time_matching", default_value="arrival"),
         DeclareLaunchArgument("bridge_config",
                               default_value=os.path.join(repo, "simulation", "gz-bridge.yaml")),
     ]
@@ -33,6 +35,9 @@ def generate_launch_description():
                  "home_y": ParameterValue(LaunchConfiguration("home_y"), value_type=float),
                  "prior_scenario": ParameterValue(LaunchConfiguration("prior_scenario"), value_type=str),
                  "config_file": ParameterValue(LaunchConfiguration("config_file"), value_type=str),
+                 "use_lidar": ParameterValue(LaunchConfiguration("use_lidar"), value_type=bool),
+                 "lidar_time_matching": ParameterValue(LaunchConfiguration("lidar_time_matching"),
+                                                       value_type=str),
                  "lidar_topic": "/lidar/points",
              }]),
     ])

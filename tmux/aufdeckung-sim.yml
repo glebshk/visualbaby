@@ -23,7 +23,7 @@ windows:
         - mission:
             - source install/setup.bash
             - sleep 30
-            - ros2 launch aufdeckung_ros aufdeckung_sim.launch.py home_x:=$START_X home_y:=$START_Y
+            - ros2 launch aufdeckung_ros aufdeckung_sim.launch.py home_x:=$START_X home_y:=$START_Y $AUFDECKUNG_LAUNCH_ARGS
         - monitor:
             - source install/setup.bash
             - sleep 35
