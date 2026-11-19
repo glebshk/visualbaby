@@ -16,7 +16,7 @@ from enum import Enum
 
 import numpy as np
 
-from aufdeckung.config import Config
+from aufdeckung.config import Config, FlightConfig
 from aufdeckung.geometry import BoolArray, FloatArray, Shape, inside_with_margin, regular_polygon
 from aufdeckung.mapping.coverage import CoverageMap
 from aufdeckung.mapping.grid import GridSpec, HeightMap, cage_mask
@@ -120,16 +120,21 @@ class MissionController:
         self,
         t: float,
         pos: FloatArray,
-        scan: tuple[FloatArray, BoolArray] | None = None,
+        scan: tuple[FloatArray, BoolArray] | tuple[FloatArray, BoolArray, FloatArray] | None = None,
         rain_active: tuple[RainZone, ...] = (),
     ) -> Setpoint:
         p = (float(pos[0]), float(pos[1]), float(pos[2]))
         if p[2] > 1.0:
             # The drone occupies its own position: nothing below it reaches up to it.
             self.hm.mark_free(p[0], p[1], p[2] - FREE_BELOW_DRONE_M, self.cfg.flight.drone_radius)
+        origin = p
         if scan is not None:
-            scan = self._drop_known_structure(scan)
-        if scan is not None and self.hm.integrate_hits(scan[0], p[2], scan[1], origin=p):
+            if len(scan) == 3:
+                # Where the sensor was when the scan was taken (scans arrive up to ~0.8 s late).
+                o = scan[2]
+                origin = (float(o[0]), float(o[1]), float(o[2]))
+            scan = self._drop_known_structure((scan[0], scan[1]))
+        if scan is not None and self.hm.integrate_hits(scan[0], origin[2], scan[1], origin=origin):
             self._dirty = True
         if tuple(rain_active) != self._rain:
             self._rain = tuple(rain_active)
@@ -193,7 +198,8 @@ class MissionController:
         if self.phase == Phase.RETURN and len(self.route) == 1:
             self._set_phase(t, Phase.LAND)
         wp = self.route[0]
-        return Setpoint(wp.x, wp.y, wp.z, 0.0, self.phase)
+        x, y, z = _lead_limited(p, wp.xyz, self.cfg.flight)
+        return Setpoint(x, y, z, 0.0, self.phase)
 
     def _on_route_end(self, t: float, p: tuple[float, float, float]) -> None:
         if self.phase in (Phase.LAND, Phase.RETURN):
@@ -317,6 +323,24 @@ class MissionController:
 
     def _log(self, t: float, kind: str, detail: str = "") -> None:
         self.events.append(MissionEvent(round(t, 2), kind, detail))
+
+
+def _lead_limited(p: tuple[float, float, float], target: tuple[float, float, float], fl: FlightConfig
+                  ) -> tuple[float, float, float]:
+    """The setpoint on the straight line to ``target``, at most ``setpoint_lead`` seconds of flight
+    ahead of the drone. PX4's position controller flies at roughly (distance to setpoint) per second,
+    capped only by its own 12 m/s: a waypoint 15 m away made it race there at 45 deg tilt (Gazebo
+    flight 3). Same straight line, so obstacle clearance is unchanged; only the speed is limited."""
+    dx, dy, dz = target[0] - p[0], target[1] - p[1], target[2] - p[2]
+    h = math.hypot(dx, dy)
+    max_h = fl.max_speed * fl.setpoint_lead
+    max_v = fl.max_climb * fl.setpoint_lead
+    f = 1.0
+    if h > max_h:
+        f = min(f, max_h / h)
+    if abs(dz) > max_v:
+        f = min(f, max_v / abs(dz))
+    return p[0] + f * dx, p[1] + f * dy, p[2] + f * dz
 
 
 def _dist(a: tuple[float, float, float], b: tuple[float, float, float]) -> float:

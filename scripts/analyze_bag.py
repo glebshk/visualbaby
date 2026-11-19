@@ -67,12 +67,29 @@ def _latest(times: np.ndarray, t: float) -> int | None:
     return i if i >= 0 else None
 
 
+# How a scan is matched to the drone state: "arrival" = the latest pose when the scan arrived (what
+# the mission node did until now), "capture" = the pose when the scan was taken (its own stamp, moved
+# onto the receive clock by the smallest observed delay - what the mission node does now).
+MATCH = {"mode": "arrival"}
+
+
+def capture_offset(bag: dict) -> float:
+    if "_offset" not in bag:
+        d = [t - (m.header.stamp.sec + m.header.stamp.nanosec * 1e-9) for t, m in bag["/lidar/points"]]
+        bag["_offset"] = min(d) if d else 0.0
+    return float(bag["_offset"])
+
+
 def scan_inputs(bag: dict, home: tuple[float, float], lag: float):  # type: ignore[no-untyped-def]
     """Yield (t, sensor points, drone ENU, yaw, attitude or None) per lidar scan."""
     pose_t = np.array([t for t, _ in bag["/drone/out/pos/ned"]])
     att_t = np.array([t for t, _ in bag["/drone/out/attitude"]])
     head_t = np.array([t for t, _ in bag["/drone/out/heading"]])
-    for t, cloud in bag["/lidar/points"]:
+    offset = capture_offset(bag) if MATCH["mode"] == "capture" else 0.0
+    for t_arrival, cloud in bag["/lidar/points"]:
+        t = t_arrival
+        if MATCH["mode"] == "capture":
+            t = cloud.header.stamp.sec + cloud.header.stamp.nanosec * 1e-9 + offset
         ip = _latest(pose_t, t + lag)
         if ip is None:
             continue
@@ -446,6 +463,11 @@ def main() -> int:
     home = (float(truth.sc.start[0]), float(truth.sc.start[1]))
     print(f"bag {args.bag}, arena {scenario.name}, home {home}")
     bag = read_bag(args.bag)
+    print("== matching scans to the drone state when they ARRIVED (old mission node)")
+    MATCH["mode"] = "arrival"
+    replay_blame(bag, truth, cfg, home, None)
+    print("== matching scans to the drone state when they were TAKEN (current mission node)")
+    MATCH["mode"] = "capture"
     replay_blame(bag, truth, cfg, home, args.plot)
     if not args.replay_only:
         analyze(bag, truth, cfg, home, args.plot)

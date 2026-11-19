@@ -19,7 +19,34 @@ def test_first_setpoint_is_vertical_takeoff(cfg: Config) -> None:
     sp = ctrl.update(0.0, np.array([0.0, -18.0, 0.0]))
     assert sp.phase == Phase.TAKEOFF
     assert (sp.x, sp.y) == pytest.approx((0.0, -18.0), abs=0.3)
-    assert sp.z >= cfg.flight.min_alt
+    assert sp.z == pytest.approx(cfg.flight.max_climb * cfg.flight.setpoint_lead)  # lead-limited climb
+    assert ctrl.route[0].z >= cfg.flight.min_alt  # towards a safe altitude first
+
+
+def test_setpoints_stay_close_ahead_on_the_line_to_the_waypoint(cfg: Config) -> None:
+    # Regression (Gazebo flight 3): setpoints up to 15 m away made PX4 race at 45 deg tilt.
+    from aufdeckung.planning.coverage_planner import Waypoint
+
+    ctrl = MissionController(cfg, (0.0, -18.0))
+    ctrl.update(0.0, np.array([0.0, -18.0, 8.0]))
+    ctrl.phase = Phase.COVER
+    ctrl.route = [Waypoint(15.0, -10.0, 9.0)]
+    p = np.array([0.0, -18.0, 8.0])
+    sp = ctrl._step(1.0, tuple(p))
+    lead = np.array([sp.x, sp.y, sp.z]) - p
+    assert np.hypot(lead[0], lead[1]) == pytest.approx(cfg.flight.max_speed * cfg.flight.setpoint_lead)
+    direction = np.array([15.0, 8.0, 1.0]) / np.linalg.norm([15.0, 8.0, 1.0])
+    np.testing.assert_allclose(lead / np.linalg.norm(lead), direction, atol=1e-9)  # same straight line
+    near = ctrl._step(1.1, (14.0, -10.5, 9.0))
+    assert (near.x, near.y, near.z) == (15.0, -10.0, 9.0)  # close to the waypoint: the waypoint itself
+
+
+def test_scan_with_capture_origin_is_integrated_from_there(cfg: Config) -> None:
+    ctrl = MissionController(cfg, (0.0, -18.0))
+    # A top-beam hit at 8.0 m: the margin applies only if the hit is at or above the sensor height.
+    hit = np.array([[5.0, 0.0, 8.0]])
+    ctrl.update(1.0, np.array([0.0, -10.0, 9.0]), (hit, np.array([True]), np.array([0.0, 0.0, 7.9])))
+    assert ctrl.hm.height[ctrl.spec.index(5.0, 0.0)] > 9.5  # sensor was at 7.9 m when it was taken
 
 
 def test_open_arena_mission_lifecycle(cfg: Config) -> None:

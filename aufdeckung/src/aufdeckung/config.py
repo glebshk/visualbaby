@@ -100,6 +100,7 @@ class FlightConfig:
     vertical_clearance: float = 1.5
     drone_radius: float = 0.35
     waypoint_tolerance: float = 0.3
+    setpoint_lead: float = 1.0  # s of flight: setpoints sent to PX4 are at most this far ahead
 
     def __post_init__(self) -> None:
         if not 0 < self.min_alt <= self.cruise_alt <= self.max_alt:
@@ -110,6 +111,8 @@ class FlightConfig:
             raise ValueError("max_climb and max_accel must be positive")
         if self.clearance <= self.drone_radius:
             raise ValueError("clearance must exceed the drone radius")
+        if self.setpoint_lead <= 0:
+            raise ValueError("setpoint_lead must be positive")
         if self.vertical_clearance <= 0 or self.waypoint_tolerance <= 0:
             raise ValueError("vertical_clearance and waypoint_tolerance must be positive")
 
