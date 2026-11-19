@@ -443,7 +443,8 @@ def heading_timeline(bag: dict, truth: Truth, cfg: Config, home: tuple[float, fl
     """Best heading correction per scan over time: a constant value is a compass offset, a drifting or
     jumping one points at the estimator (e.g. yaw not converged right after take-off)."""
     print("== heading error over time (per scan: rotation about the drone that removes most phantoms)")
-    print("    t [s]   z [m]  tilt  PX4 heading  attitude yaw  best corr   phantoms before -> after")
+    print("    t [s]   z [m]  tilt  PX4 heading  attitude yaw  best corr   phantoms before -> after"
+          "   | if still > 5 %: best shift dx dy dz [m] -> phantoms")
     head_t = np.array([t for t, _ in bag["/drone/out/heading"]])
     t0 = bag["/lidar/points"][0][0] if bag["/lidar/points"] else 0.0
     for k, (t, pts, pos, yaw, att) in enumerate(scan_inputs(bag, home, 0.0)):
@@ -463,8 +464,21 @@ def heading_timeline(bag: dict, truth: Truth, cfg: Config, home: tuple[float, fl
         if att is not None:
             w, x, y, z = att
             att_yaw = math.degrees(math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z)))
+        extra = ""
+        if rates[best] > 5.0:
+            # Not a rotation: try a position / altitude error (shift every point of the scan).
+            rotated = _shifted(world, pos, float(best), 0.0, 0.0)
+            trials = {}
+            for dz in np.arange(-4.0, 4.01, 0.5):
+                for dx in (-2.0, 0.0, 2.0):
+                    for dy in (-2.0, 0.0, 2.0):
+                        shifted = rotated + np.array([dx, dy, dz])
+                        c, ph = truth.phantoms(shifted)
+                        trials[(dx, dy, float(dz))] = 100 * ph.sum() / max(int(c.sum()), 1)
+            k = min(trials, key=lambda q: (round(trials[q], 1), abs(q[0]) + abs(q[1]) + abs(q[2])))
+            extra = f"   | {k[0]:+.0f} {k[1]:+.0f} {k[2]:+.1f} -> {trials[k]:5.1f} %"
         print(f"    {t - t0:6.1f}  {pos[2]:5.1f}  {tilt_of(att):4.1f}   {px4_head:7.1f}      {att_yaw:7.1f}"
-              f"      {best:+3d} deg    {rates[0]:5.1f} % -> {rates[best]:5.1f} %")
+              f"      {best:+3d} deg    {rates[0]:5.1f} % -> {rates[best]:5.1f} %{extra}")
 
 
 def inside_mask(ctrl, world: np.ndarray) -> np.ndarray:  # type: ignore[no-untyped-def]
