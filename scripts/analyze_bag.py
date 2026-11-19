@@ -328,56 +328,66 @@ BLOCK_HEIGHT_M = 8.5  # a cell this tall makes its 1.5 m surroundings unflyable 
 
 
 def replay_blame(bag: dict, truth: Truth, cfg: Config, home: tuple[float, float], plot: Path | None) -> None:
-    """Replay the scans through the mission node's own mapping and say which scan, which beam and
-    which drone state wrongly made cells too tall to fly over, above all around home."""
-    from aufdeckung.mapping.grid import HeightMap
-    from aufdeckung.planning.flightmap import build_flight_map
+    """Replay the scans through the mission controller itself (gates, known free space, net filter,
+    mapping, planning) and say which scan, which beam and which drone state wrongly made cells too
+    tall to fly over - above all around home - and what the controller decided."""
+    from aufdeckung.planning.mission import MissionController
     from aufdeckung_ros.conversions import tilt_deg
 
     beam_step = (cfg.lidar.v_max_deg - cfg.lidar.v_min_deg) / max(cfg.lidar.v_samples - 1, 1)
     spec = truth.spec
-    hm = HeightMap(spec, cfg.arena)
+    ctrl = MissionController(cfg, home)
     blame: dict[tuple[int, int], dict] = {}
     t0 = bag["/lidar/points"][0][0] if bag["/lidar/points"] else 0.0
     for t, pts, pos, yaw, att in scan_inputs(bag, home, 0.0):
-        if att is not None and tilt_deg(att) > 12.0:  # the node's gates
+        base = np.array([pos[0], pos[1], pos[2] - LIDAR_ABOVE_BASE_M])  # the node uses the drone position
+        if att is not None and tilt_deg(att) > 12.0:  # the node's tilt gate
+            ctrl.update(t - t0, base)
             continue
-        base = (pos[0], pos[1], pos[2] - LIDAR_ABOVE_BASE_M)  # the node uses the drone position
-        world, top = lidar_to_world(pts, base, yaw, cfg.lidar.v_max_deg, beam_step, attitude_ned=att,
+        world, top = lidar_to_world(pts, tuple(base), yaw, cfg.lidar.v_max_deg, beam_step, attitude_ned=att,
                                     max_range=20.0)
-        before = hm.height.copy()
-        hm.integrate_hits(world, base[2], top, origin=base)
-        crossed = (hm.height >= BLOCK_HEIGHT_M) & (before < BLOCK_HEIGHT_M) & (truth.allowed < BLOCK_HEIGHT_M)
+        sens = pts[np.isfinite(pts).all(axis=1)]  # same filtering as lidar_to_world, to keep indices
+        rng = np.linalg.norm(sens, axis=1)
+        sens = sens[(rng >= 0.6) & (rng < 19.5)]
+        keep = inside_mask(ctrl, world) if len(world) else np.zeros(0, dtype=bool)
+        aligned = len(sens) == len(world)
+        world, top = world[keep], top[keep]
+        sens = sens[keep] if aligned else sens
+        before = ctrl.hm.height.copy()
+        ctrl.update(t - t0, base, (world, top))
+        crossed = (ctrl.hm.height >= BLOCK_HEIGHT_M) & (before < BLOCK_HEIGHT_M) & (truth.allowed < BLOCK_HEIGHT_M)
         if not crossed.any():
             continue
         iy, ix = spec.indices(world[:, 0], world[:, 1])
         ok = spec.valid(iy, ix)
-        sens = pts[np.isfinite(pts).all(axis=1)]
-        sens = sens[np.linalg.norm(sens, axis=1) >= 0.6]
-        rng_all = np.linalg.norm(sens, axis=1)
-        sens = sens[rng_all < 19.5]
         for cy, cx in zip(*np.nonzero(crossed)):
-            m = ok & (iy == cy) & (ix == cx) & (world[:, 2] >= BLOCK_HEIGHT_M - 2.5)
-            if not m.any() or len(sens) != len(world):
-                src = None
-            else:
+            m = ok & (iy == cy) & (ix == cx)
+            src = None
+            if m.any() and len(sens) == len(world):
                 k = int(np.argmax(np.where(m, world[:, 2], -np.inf)))
                 v = sens[k]
                 src = dict(range=float(np.linalg.norm(v)), elev=float(np.degrees(np.arctan2(v[2], np.hypot(v[0], v[1])))),
                            az=float(np.degrees(np.arctan2(v[1], v[0]))), top=bool(top[k]), z=float(world[k, 2]))
-            blame[(int(cy), int(cx))] = dict(t=t - t0, pos=base, tilt=tilt_of(att), src=src,
-                                            height=float(hm.height[cy, cx]), true=float(truth.true_h[cy, cx]))
-    fm = build_flight_map(hm, cfg, (), assume_unknown_below_cruise=True)
+            blame[(int(cy), int(cx))] = dict(t=t - t0, pos=tuple(base), tilt=tilt_of(att), src=src,
+                                            height=float(ctrl.hm.height[cy, cx]), true=float(truth.true_h[cy, cx]))
+    ctrl._rebuild()
+    fm, hm = ctrl.fm, ctrl.hm
     hy, hx = fm.cell(*home)
-    print("== replay through the mission node's mapping (gates on)")
-    print(f"    wrongly blocking cells (believed >= {BLOCK_HEIGHT_M} m, truth lower): {len(blame)}")
+    still = {c: b for c, b in blame.items() if hm.height[c] >= BLOCK_HEIGHT_M}  # not lowered again later
+    print("== replay through the mission controller (gates, known free space, net filter, planning)")
+    print(f"    wrongly blocking cells at the end (believed >= {BLOCK_HEIGHT_M} m, truth lower): {len(still)} "
+          f"(raised at some point: {len(blame)})")
     print(f"    home cell flyable at the end: {bool(fm.hard_ok[hy, hx])} "
           f"(required altitude {fm.required_alt[hy, hx]:.2f} m, limit {cfg.flight.max_alt} m)")
-    r_cells = cfg.flight.clearance / spec.res + 1
-    near = sorted(((cy - hy) ** 2 + (cx - hx) ** 2, c, b) for c, b in blame.items()
-                  if (c[0] - hy) ** 2 + (c[1] - hx) ** 2 <= (r_cells + 4) ** 2)
-    print(f"    of them within {cfg.flight.clearance + 2:.1f} m of home: {len(near)}")
-    show = [b for _d, _c, b in near[:8]] or [b for b in sorted(blame.values(), key=lambda b: b["t"])[:8]]
+    print(f"    flyable cells at the end: {int(fm.hard_ok.sum())} (inside the cage margin: "
+          f"{int(cage_mask(spec, cfg.arena, margin=cfg.arena.net_margin).sum())})")
+    decisions = [e for e in ctrl.events if e.kind in ("phase", "planning_error", "return_failed", "hopeless_retry")]
+    print("    controller decisions: " + ("; ".join(f"{e.t:.1f}s {e.kind} {e.detail}" for e in decisions[:12]) or "none"))
+    r_cells = (cfg.flight.clearance + 0.5) / spec.res
+    near = sorted(((cy - hy) ** 2 + (cx - hx) ** 2, c, b) for c, b in still.items()
+                  if (c[0] - hy) ** 2 + (c[1] - hx) ** 2 <= r_cells ** 2)
+    print(f"    of them within {cfg.flight.clearance + 0.5:.1f} m of home (these block home): {len(near)}")
+    show = [b for _d, _c, b in near[:8]] or [b for b in sorted(still.values(), key=lambda b: b["t"])[:8]]
     print("    culprits (time, cell believed/true height, drone pos, tilt, the beam that raised it):")
     for b in show:
         x, y, z = b["pos"]
@@ -400,14 +410,25 @@ def replay_blame(bag: dict, truth: Truth, cfg: Config, home: tuple[float, float]
         fig.colorbar(im, ax=ax, label="believed height [m]")
         ax.contour(np.linspace(ext[0], ext[1], spec.nx), np.linspace(ext[2], ext[3], spec.ny), truth.true_h,
                    levels=[0.5], colors="white", linewidths=0.6)
-        if blame:
-            cs = np.array([spec.center(*c) for c in blame])
+        ax.contour(np.linspace(ext[0], ext[1], spec.nx), np.linspace(ext[2], ext[3], spec.ny),
+                   fm.hard_ok.astype(float), levels=[0.5], colors="cyan", linewidths=0.6)
+        if still:
+            cs = np.array([spec.center(*c) for c in still])
             ax.scatter(cs[:, 0], cs[:, 1], s=6, c="red", label="wrongly blocking")
         ax.plot([home[0]], [home[1]], "w*", ms=12, label="home")
         ax.legend(loc="upper right")
-        ax.set_title("map from replaying the bag (white: true obstacle outlines)")
+        ax.set_title("replayed map (white: true obstacles, cyan: edge of flyable area)")
         fig.savefig(out, dpi=110, bbox_inches="tight")
         print(f"    saved {out}")
+
+
+def inside_mask(ctrl, world: np.ndarray) -> np.ndarray:  # type: ignore[no-untyped-def]
+    """The controller's known-structure filter as a mask (net, outside, ceiling)."""
+    from aufdeckung.geometry import inside_with_margin
+    from aufdeckung.planning.mission import CEILING_IGNORE_M, NET_IGNORE_M
+
+    return inside_with_margin(world[:, 0], world[:, 1], ctrl._cage_poly, NET_IGNORE_M) & (
+        world[:, 2] < ctrl.cfg.arena.height - CEILING_IGNORE_M)
 
 
 def main() -> int:

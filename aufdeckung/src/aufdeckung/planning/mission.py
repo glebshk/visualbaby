@@ -17,7 +17,7 @@ from enum import Enum
 import numpy as np
 
 from aufdeckung.config import Config
-from aufdeckung.geometry import BoolArray, FloatArray, Shape
+from aufdeckung.geometry import BoolArray, FloatArray, Shape, inside_with_margin, regular_polygon
 from aufdeckung.mapping.coverage import CoverageMap
 from aufdeckung.mapping.grid import GridSpec, HeightMap, cage_mask
 from aufdeckung.planning.coverage_planner import (
@@ -32,6 +32,11 @@ from aufdeckung.sensors.camera import visible_cells
 
 HOLD_RETRY_S = 3.0
 FREE_BELOW_DRONE_M = 0.6  # body half-height plus position noise
+# The cage itself is known structure: its net (and, in the real cage, everything seen through it) is
+# not an obstacle to map. Points outside the cage, within this distance of the net or at the ceiling
+# are dropped. Small on purpose: obstacles may stand right along the edges (Regelwerk 6.4).
+NET_IGNORE_M = 0.5
+CEILING_IGNORE_M = 0.5
 
 
 class Phase(str, Enum):
@@ -86,6 +91,7 @@ class MissionController:
             raise ValueError("explore=False needs a prior map")
         if self.cfg.mission.home_clear_radius > 0:
             self.hm.mark_free(self.start[0], self.start[1], 0.0, self.cfg.mission.home_clear_radius)
+        self._cage_poly = regular_polygon(self.cfg.arena.diameter, self.cfg.arena.n_sides)
         self.coverage = CoverageMap(self.spec)
         self.need = cage_mask(self.spec, self.cfg.arena)
         fl = self.cfg.flight
@@ -121,6 +127,8 @@ class MissionController:
         if p[2] > 1.0:
             # The drone occupies its own position: nothing below it reaches up to it.
             self.hm.mark_free(p[0], p[1], p[2] - FREE_BELOW_DRONE_M, self.cfg.flight.drone_radius)
+        if scan is not None:
+            scan = self._drop_known_structure(scan)
         if scan is not None and self.hm.integrate_hits(scan[0], p[2], scan[1], origin=p):
             self._dirty = True
         if tuple(rain_active) != self._rain:
@@ -152,6 +160,14 @@ class MissionController:
             self._last_hold_try = t
             self._start_return(t, p)
         return self._step(t, p)
+
+    def _drop_known_structure(self, scan: tuple[FloatArray, BoolArray]) -> tuple[FloatArray, BoolArray]:
+        pts, top = scan
+        if len(pts) == 0:
+            return scan
+        keep = inside_with_margin(pts[:, 0], pts[:, 1], self._cage_poly, NET_IGNORE_M) & (
+            pts[:, 2] < self.cfg.arena.height - CEILING_IGNORE_M)
+        return pts[keep], top[keep]
 
     @property
     def done(self) -> bool:
