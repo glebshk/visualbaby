@@ -145,6 +145,13 @@ class FlyNode(Node):
         self.publish_status_attitude()
     )
 
+    # The telemetry loops below publish every message as soon as MAVSDK delivers it. They used to
+    # sleep 1/20 s after each one: PX4 streams position at 20 Hz (set_rate_* above), so the loops
+    # fell behind, MAVSDK queued the rest, and what was published as the current position/heading
+    # got older the longer the flight ran (heading measured 1 s behind attitude after 60 s). The
+    # mission node then steered and mapped with an outdated position: slow climbs, crawling,
+    # swinging, phantom obstacles. The stream rates are set with set_rate_*, not by sleeping.
+
     async def publish_status_armed(self):
         # Publish Telemetry armed Status
         async for self.status_arm in self.drone.telemetry.armed():
@@ -152,7 +159,6 @@ class FlyNode(Node):
             msg = Bool()
             msg.data = self.status_arm
             self.status_arm_pub.publish(msg)
-            await asyncio.sleep(1/cfg.TELEMETRY_PUBLISH_RATE)
     
     async def publish_status_bat(self):
         async for self.bat in self.drone.telemetry.battery():
@@ -162,7 +168,6 @@ class FlyNode(Node):
             msg.current = self.bat.current_battery_a
             msg.consumed_mah = self.bat.capacity_consumed_ah
             self.bat_pub.publish(msg)
-            await asyncio.sleep(1/cfg.TELEMETRY_PUBLISH_RATE)
     
     async def publish_status_in_air(self):
         async for self.in_air in self.drone.telemetry.in_air():
@@ -170,7 +175,6 @@ class FlyNode(Node):
             msg = Bool()
             msg.data = self.in_air
             self.in_air_pub.publish(msg)
-            await asyncio.sleep(1/cfg.TELEMETRY_PUBLISH_RATE)
     
     async def publish_status_health(self):
         async for self.health in self.drone.telemetry.health():
@@ -191,7 +195,6 @@ class FlyNode(Node):
             if self.health.is_armable:
                 msg.armable = True
             self.health_pub.publish(msg)
-            await asyncio.sleep(1/cfg.TELEMETRY_PUBLISH_RATE)
     
     async def publish_status_altitude(self):
         async for self.alt in self.drone.telemetry.altitude():
@@ -199,7 +202,6 @@ class FlyNode(Node):
             msg = Float32()
             msg.data = self.alt.altitude_relative_m
             self.alt_pub.publish(msg)
-            await asyncio.sleep(1/cfg.TELEMETRY_PUBLISH_RATE)
     
     async def publish_status_heading(self):
         async for self.heading in self.drone.telemetry.heading():
@@ -207,7 +209,6 @@ class FlyNode(Node):
             msg = Float32()
             msg.data = self.heading.heading_deg
             self.heading_pub.publish(msg)
-            await asyncio.sleep(1/cfg.TELEMETRY_PUBLISH_RATE)
     
     async def publish_status_flightmode(self):
         async for self.fm in self.drone.telemetry.flight_mode():
@@ -215,7 +216,6 @@ class FlyNode(Node):
             msg = String()
             msg.data = self.fm.name
             self.fm_pub.publish(msg)
-            await asyncio.sleep(1/cfg.TELEMETRY_PUBLISH_RATE)
     
     async def publish_status_imu(self):
         async for self.imu in self.drone.telemetry.imu():
@@ -230,7 +230,6 @@ class FlyNode(Node):
             msg.angular_velocity.z = self.imu.angular_velocity_frd.down_rad_s
 
             self.imu_pub.publish(msg)
-            await asyncio.sleep(1/cfg.TELEMETRY_IMU_PUBLISH_RATE)
     
     async def publish_status_ned_pos(self):
         async for self.ned_pos in self.drone.telemetry.position_velocity_ned():
@@ -240,7 +239,6 @@ class FlyNode(Node):
             msg.pose.position.y = self.ned_pos.position.east_m
             msg.pose.position.z = self.ned_pos.position.down_m
             self.ned_pos_pub.publish(msg)
-            await asyncio.sleep(1/cfg.TELEMETRY_PUBLISH_RATE)
     
     async def publish_status_attitude(self):
         async for q in self.drone.telemetry.attitude_quaternion():
@@ -257,7 +255,6 @@ class FlyNode(Node):
             msg = String()
             msg.data = str(self.landed_state.name)
             self.landing_state_pub.publish(msg)
-            await asyncio.sleep(1/cfg.TELEMETRY_PUBLISH_RATE)
     
 
     def set_offboard_status(self,msg):

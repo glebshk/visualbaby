@@ -67,29 +67,12 @@ def _latest(times: np.ndarray, t: float) -> int | None:
     return i if i >= 0 else None
 
 
-# How a scan is matched to the drone state: "arrival" = the latest pose when the scan arrived (what
-# the mission node did until now), "capture" = the pose when the scan was taken (its own stamp, moved
-# onto the receive clock by the smallest observed delay - what the mission node does now).
-MATCH = {"mode": "arrival"}
-
-
-def capture_offset(bag: dict) -> float:
-    if "_offset" not in bag:
-        d = [t - (m.header.stamp.sec + m.header.stamp.nanosec * 1e-9) for t, m in bag["/lidar/points"]]
-        bag["_offset"] = min(d) if d else 0.0
-    return float(bag["_offset"])
-
-
 def scan_inputs(bag: dict, home: tuple[float, float], lag: float):  # type: ignore[no-untyped-def]
     """Yield (t, sensor points, drone ENU, yaw, attitude or None) per lidar scan."""
     pose_t = np.array([t for t, _ in bag["/drone/out/pos/ned"]])
     att_t = np.array([t for t, _ in bag["/drone/out/attitude"]])
     head_t = np.array([t for t, _ in bag["/drone/out/heading"]])
-    offset = capture_offset(bag) if MATCH["mode"] == "capture" else 0.0
-    for t_arrival, cloud in bag["/lidar/points"]:
-        t = t_arrival
-        if MATCH["mode"] == "capture":
-            t = cloud.header.stamp.sec + cloud.header.stamp.nanosec * 1e-9 + offset
+    for t, cloud in bag["/lidar/points"]:
         ip = _latest(pose_t, t + lag)
         if ip is None:
             continue
@@ -439,6 +422,30 @@ def replay_blame(bag: dict, truth: Truth, cfg: Config, home: tuple[float, float]
         print(f"    saved {out}")
 
 
+def telemetry_lag(bag: dict) -> None:
+    """How far /drone/out/heading trails the attitude stream. Until the bridge fix, every telemetry
+    loop slept after each message and fell behind PX4's stream, so heading AND position got staler
+    during the flight; the attitude loop had no sleep. A lag near 0 means the bridge keeps up."""
+    head, att = bag["/drone/out/heading"], bag["/drone/out/attitude"]
+    if len(head) < 20 or len(att) < 20:
+        return
+    ta = np.array([t for t, _ in att])
+    ya = np.unwrap(np.radians([math.degrees(math.atan2(2 * (m.quaternion.w * m.quaternion.z + m.quaternion.x *
+                                                     m.quaternion.y), 1 - 2 * (m.quaternion.y ** 2 + m.quaternion.z ** 2)))
+                               for _t, m in att]))
+    th = np.array([t for t, _ in head])
+    yh = np.unwrap(np.radians([m.data for _t, m in head]))  # both: degrees clockwise from north
+    print("== telemetry delay: how far PX4 heading trails the attitude stream")
+    for name, sel in (("first third", th < th[0] + (th[-1] - th[0]) / 3), ("last third", th > th[-1] - (th[-1] - th[0]) / 3)):
+        best, best_err = 0.0, math.inf
+        for lag in np.arange(0.0, 20.01, 0.1):
+            ref = np.interp(th[sel] - lag, ta, ya)
+            err = float(np.mean(np.abs(np.angle(np.exp(1j * (yh[sel] - ref))))))
+            if err < best_err - 1e-6:
+                best, best_err = float(lag), err
+        print(f"    {name}: heading trails attitude by {best:.1f} s (mean mismatch {math.degrees(best_err):.2f} deg)")
+
+
 def heading_timeline(bag: dict, truth: Truth, cfg: Config, home: tuple[float, float], every: int = 10) -> None:
     """Best heading correction per scan over time: a constant value is a compass offset, a drifting or
     jumping one points at the estimator (e.g. yaw not converged right after take-off)."""
@@ -505,13 +512,8 @@ def main() -> int:
     home = (float(truth.sc.start[0]), float(truth.sc.start[1]))
     print(f"bag {args.bag}, arena {scenario.name}, home {home}")
     bag = read_bag(args.bag)
-    print("== matching scans to the drone state when they ARRIVED (mission node default)")
-    MATCH["mode"] = "arrival"
+    telemetry_lag(bag)
     replay_blame(bag, truth, cfg, home, args.plot)
-    print("== matching scans to the drone state when they were TAKEN (lidar_time_matching:=capture)")
-    MATCH["mode"] = "capture"
-    replay_blame(bag, truth, cfg, home, None)
-    MATCH["mode"] = "arrival"  # what the mission node does by default
     heading_timeline(bag, truth, cfg, home)
     if not args.replay_only:
         analyze(bag, truth, cfg, home, args.plot)

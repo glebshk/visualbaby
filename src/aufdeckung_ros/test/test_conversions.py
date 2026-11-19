@@ -124,30 +124,3 @@ def test_returns_at_the_range_limit_are_no_returns():
     world, _ = lidar_to_world(pts, (0.0, 0.0, 8.0), 0.0, 10.0, 4.67, max_range=30.0)
     assert world.shape == (1, 3)
     np.testing.assert_allclose(world[0], [12.0, 3.0, 7.0], atol=1e-9)
-
-
-def test_capture_clock_uses_the_fastest_arrival():
-    from aufdeckung_ros.conversions import CaptureClock
-
-    clock = CaptureClock()
-    # sensor clock = node clock - 1000 s; arrival delays 0.4, 0.05, 0.7 s
-    for stamp, delay in [(1.0, 0.4), (1.1, 0.05), (1.2, 0.7)]:
-        clock.observe(1000.0 + stamp + delay, stamp)
-    assert clock.capture_time(1.2) == pytest.approx(1000.0 + 1.2 + 0.05)
-
-
-def test_state_history_interpolates_and_forgets():
-    from aufdeckung_ros.conversions import StateHistory
-
-    h = StateHistory(horizon_s=3.0)
-    assert h.at(1.0) is None
-    h.add(10.0, (0.0, 0.0, 8.0))
-    h.add(10.1, (0.3, 0.0, 8.0))
-    assert h.at(10.05) == pytest.approx((0.15, 0.0, 8.0))
-    assert h.at(10.5) == pytest.approx((0.3, 0.0, 8.0))  # newer than history: latest value
-    h.add(14.0, (1.0, 0.0, 8.0))
-    assert h.at(10.05) is None  # older than the 3 s horizon
-    q = StateHistory(interpolate=False)
-    q.add(1.0, (1.0, 0.0, 0.0, 0.0))
-    q.add(1.1, (0.0, 1.0, 0.0, 0.0))
-    assert q.at(1.09) == (1.0, 0.0, 0.0, 0.0)  # quaternions: nearest earlier, not interpolated

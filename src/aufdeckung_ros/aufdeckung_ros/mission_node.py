@@ -39,8 +39,6 @@ from aufdeckung.scenario.io import load_scenario
 from aufdeckung.scenario.model import RainZone
 from aufdeckung_ros.conversions import (
     SELF_FILTER_RADIUS_M,
-    CaptureClock,
-    StateHistory,
     cage_enu_to_setpoint,
     cloud_xyz,
     heading_to_enu_yaw,
@@ -72,11 +70,6 @@ class AufdeckungNode(Node):
         # false: fly on the prior (layout plan) only, no lidar mapping. Separates "does the mission
         # fly" from "is the lidar map right" (Regelwerk 6.4: the layout plan is given in advance).
         self.declare_parameter("use_lidar", True)
-        # "arrival": drone state when the scan arrives; "capture": at the scan's own stamp. Gazebo
-        # flights 3 and 4 mapped WORSE with "capture" (1991 -> 2540 and 719 -> 1121 wrongly blocking
-        # cells): in lockstep SITL the stamps are sim time, which runs unevenly against the wall
-        # clock, so their 0-0.8 s spread is not transport delay.
-        self.declare_parameter("lidar_time_matching", "arrival")
 
         cfg = Config()
         cfg_file = str(self.get_parameter("config_file").value)
@@ -93,7 +86,7 @@ class AufdeckungNode(Node):
         self.yaw = 0.0
         self.health_ok = False
         self.land_state = ""
-        self.scan: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None  # points, top beam, sensor pos
+        self.scan: tuple[np.ndarray, np.ndarray] | None = None
         self.rain: tuple[RainZone, ...] = ()
         self.started = False
         self.t0: float | None = None
@@ -104,11 +97,6 @@ class AufdeckungNode(Node):
         self._scans_used = 0
         self._scans_skipped = 0
         self._last_gate_log = -1e9
-        self.pos_hist = StateHistory(horizon_s=3.0)
-        self.att_hist = StateHistory(horizon_s=3.0, interpolate=False)
-        self.yaw_hist = StateHistory(horizon_s=3.0, interpolate=False)
-        self.capture_clock = CaptureClock()
-        self._scan_age = 0.0
         self.armed = False
         self.flight_mode = ""
         self._last_wait_log = -1e9
@@ -147,17 +135,14 @@ class AufdeckungNode(Node):
     def on_pose(self, msg: PoseStamped) -> None:
         p = msg.pose.position
         self.pos = px4_ned_to_cage_enu(p.x, p.y, p.z, self.home)
-        self.pos_hist.add(self._now(), self.pos)
 
     def on_attitude(self, msg: QuaternionStamped) -> None:
         q = msg.quaternion
         self.attitude = (q.w, q.x, q.y, q.z)
         self.attitude_time = self._now()
-        self.att_hist.add(self.attitude_time, self.attitude)
 
     def on_heading(self, msg: Float32) -> None:
         self.yaw = heading_to_enu_yaw(msg.data)
-        self.yaw_hist.add(self._now(), (self.yaw,))
 
     def on_health(self, msg: HEALTH) -> None:
         self.health = msg
@@ -202,19 +187,7 @@ class AufdeckungNode(Node):
         now = self._now()
         if not bool(self.get_parameter("use_lidar").value):
             return
-        stamp = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
-        t_cap = now
-        if stamp > 0 and str(self.get_parameter("lidar_time_matching").value) == "capture":
-            self.capture_clock.observe(now, stamp)
-            t_cap = min(self.capture_clock.capture_time(stamp), now)
-        pos_cap = self.pos_hist.at(t_cap)
-        if pos_cap is None:
-            self.get_logger().warning("lidar scan older than the pose history: skipped",
-                                      throttle_duration_sec=5.0)
-            return
-        yaw_cap = self.yaw_hist.at(t_cap)
-        att_cap = self.att_hist.at(t_cap)
-        attitude = att_cap if att_cap is not None and now - self.attitude_time < 0.5 else None
+        attitude = self.attitude if now - self.attitude_time < 0.5 else None
         if attitude is None and not self._warned_no_attitude:
             self._warned_no_attitude = True
             self.get_logger().warning("no attitude on /drone/out/attitude: lidar is corrected for yaw only, "
@@ -223,19 +196,15 @@ class AufdeckungNode(Node):
         if now - self._last_gate_log >= 10.0 and self._scans_used + self._scans_skipped:
             self._last_gate_log = now
             self.get_logger().info(f"lidar: {self._scans_used} scans mapped, {self._scans_skipped} skipped "
-                                   f"(tilt > {max_tilt:.0f} deg), last scan taken {self._scan_age:.2f} s "
-                                   f"before it arrived")
+                                   f"(tilt > {max_tilt:.0f} deg)")
         if attitude is not None and tilt_deg(attitude) > max_tilt:
             self._scans_skipped += 1
             return
         self._scans_used += 1
         max_range = min(self.cfg.lidar.max_range, float(self.get_parameter("mapping_max_range").value))
-        yaw = yaw_cap[0] if yaw_cap is not None else self.yaw
-        world, top = lidar_to_world(pts, pos_cap, yaw, self.cfg.lidar.v_max_deg, self.beam_step,
-                                    min_range=float(self.get_parameter("lidar_self_filter").value),
-                                    attitude_ned=attitude, max_range=max_range)  # type: ignore[arg-type]
-        self.scan = (world, top, np.array(pos_cap))
-        self._scan_age = now - t_cap
+        self.scan = lidar_to_world(pts, self.pos, self.yaw, self.cfg.lidar.v_max_deg, self.beam_step,
+                                   min_range=float(self.get_parameter("lidar_self_filter").value),
+                                   attitude_ned=attitude, max_range=max_range)
 
     def on_rain(self, msg: Float32MultiArray) -> None:
         vals = list(msg.data)

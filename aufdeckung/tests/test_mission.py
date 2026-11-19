@@ -41,14 +41,6 @@ def test_setpoints_stay_close_ahead_on_the_line_to_the_waypoint(cfg: Config) -> 
     assert (near.x, near.y, near.z) == (15.0, -10.0, 9.0)  # close to the waypoint: the waypoint itself
 
 
-def test_scan_with_capture_origin_is_integrated_from_there(cfg: Config) -> None:
-    ctrl = MissionController(cfg, (0.0, -18.0))
-    # A top-beam hit at 8.0 m: the margin applies only if the hit is at or above the sensor height.
-    hit = np.array([[5.0, 0.0, 8.0]])
-    ctrl.update(1.0, np.array([0.0, -10.0, 9.0]), (hit, np.array([True]), np.array([0.0, 0.0, 7.9])))
-    assert ctrl.hm.height[ctrl.spec.index(5.0, 0.0)] > 9.5  # sensor was at 7.9 m when it was taken
-
-
 def test_open_arena_mission_lifecycle(cfg: Config) -> None:
     result = run_mission(Scenario("open"), cfg)
     m = result.metrics
