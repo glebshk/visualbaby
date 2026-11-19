@@ -154,15 +154,42 @@ def _shifted(world: np.ndarray, pos, yaw_err_deg: float, dx: float, dy: float) -
     return out
 
 
-def _rate(bag, truth, cfg, home, yaw_err=0.0, dx=0.0, dy=0.0, every=4) -> float:  # type: ignore[no-untyped-def]
+def _rate(bag, truth, cfg, home, yaw_err=0.0, dx=0.0, dy=0.0, every=4, lag=0.0,  # type: ignore[no-untyped-def]
+          by_tilt=False):
     n = ph = 0
-    for k, (_t, pts, pos, yaw, att) in enumerate(scan_inputs(bag, home, 0.0)):
+    tilt_bins = {b: [0, 0] for b in ((0, 3), (3, 8), (8, 15), (15, 90))}
+    for k, (_t, pts, pos, yaw, att) in enumerate(scan_inputs(bag, home, lag)):
         if k % every:
             continue
         c, p = truth.phantoms(_shifted(convert(pts, pos, yaw, att, cfg), pos, yaw_err, dx, dy))
         n += int(c.sum())
         ph += int(p.sum())
+        if by_tilt:
+            tl = tilt_of(att)
+            for (lo, hi), acc in tilt_bins.items():
+                if lo <= tl < hi:
+                    acc[0] += int(c.sum())
+                    acc[1] += int(p.sum())
+    if by_tilt:
+        return {b: 100 * v[1] / max(v[0], 1) for b, v in tilt_bins.items() if v[0]}  # type: ignore[return-value]
     return 100 * ph / max(n, 1)
+
+
+def latency_report(bag: dict) -> None:
+    """How late lidar scans arrive (bag time minus the sensor's own stamp; only the spread matters,
+    the offset is sim time vs wall clock)."""
+    lid = bag["/lidar/points"]
+    if not lid:
+        return
+    d = np.array([t - (m.header.stamp.sec + m.header.stamp.nanosec * 1e-9) for t, m in lid])
+    d -= d.min()
+    p5, p50, p95, mx = np.percentile(d, [5, 50, 95, 100])
+    print(f"lidar arrival jitter (relative to its own stamp): p5 {p5:.3f} s, median {p50:.3f} s, "
+          f"p95 {p95:.3f} s, max {mx:.3f} s")
+    att = bag["/drone/out/attitude"]
+    if att and att[0][1].header.stamp.sec:
+        da = np.array([t - (m.header.stamp.sec + m.header.stamp.nanosec * 1e-9) for t, m in att])
+        print(f"attitude transport delay: median {np.median(da) * 1000:.0f} ms")
 
 
 def tilt_of(att) -> float:  # type: ignore[no-untyped-def]
@@ -227,14 +254,7 @@ def analyze(bag: dict, truth: Truth, cfg: Config, home: tuple[float, float], plo
             ph += int(p.sum())
         results[name] = 100 * ph / max(n, 1)
         print(f"    {name:28s} {results[name]:6.2f} %")
-    print("pose timing (positive = pose taken later than the scan):")
-    for lag in (-0.3, -0.2, -0.1, 0.0, 0.1, 0.2, 0.3):
-        n = ph = 0
-        for _t, pts, pos, yaw, att in scan_inputs(bag, home, lag):
-            c, p = truth.phantoms(convert(pts, pos, yaw, att, cfg))
-            n += int(c.sum())
-            ph += int(p.sum())
-        print(f"    {lag:+.1f} s: {100 * ph / max(n, 1):6.2f} %")
+    latency_report(bag)
 
     print("heading error sweep (rotate points about the drone; the minimum is the real error):")
     coarse = {e: _rate(bag, truth, cfg, home, yaw_err=e) for e in range(-20, 21, 2)}
@@ -249,6 +269,16 @@ def analyze(bag: dict, truth: Truth, cfg: Config, home: tuple[float, float], plo
             for dx in (-1.0, -0.5, 0.0, 0.5, 1.0) for dy in (-1.0, -0.5, 0.0, 0.5, 1.0)}
     (bx, by) = min(grid, key=lambda k: (round(grid[k], 2), abs(k[0]) + abs(k[1])))
     print(f"    BEST shift dx={bx:+.1f} dy={by:+.1f} -> {grid[(bx, by)]:.2f} % (no shift: {grid[(0.0, 0.0)]:.2f} %)")
+    print(f"timing sweep at {best_yaw:+.1f} deg (lag < 0: use pose/attitude from BEFORE the scan arrived):")
+    lags = [round(-1.5 + 0.1 * i, 1) for i in range(21)]
+    by_lag = {lag: _rate(bag, truth, cfg, home, yaw_err=best_yaw, dx=bx, dy=by, lag=lag) for lag in lags}
+    best_lag = min(by_lag, key=lambda k: (round(by_lag[k], 2), abs(k)))
+    print("    " + "  ".join(f"{k:+.1f}:{v:.1f}%" for k, v in by_lag.items()))
+    print(f"    BEST lag {best_lag:+.1f} s -> {by_lag[best_lag]:.2f} % (lag 0: {by_lag[0.0]:.2f} %)")
+    print("phantom share by tilt, after these corrections (flat = tilt correction works):")
+    for (lo, hi), v in _rate(bag, truth, cfg, home, yaw_err=best_yaw, dx=bx, dy=by, lag=best_lag,
+                             every=1, by_tilt=True).items():
+        print(f"    {lo:2d}-{hi:2d} deg: {v:6.2f} %")
 
     worst = sorted(rows, key=lambda r: -r["ph"])[:5]
     print("worst scans (time since first scan, drone position, tilt, phantoms):")
