@@ -21,6 +21,7 @@ from aufdeckung.geometry import (
 
 IntArray = NDArray[np.int64]
 UNSEEN_TOP_MARGIN = 2.0
+CONFIRM_WINDOW = 5  # scans within which a proposed height must be seen again (0.5 s at 10 Hz)
 CARVE_MAX_RANGE = 12.0  # beyond this, beams spread too far apart to vouch for thin obstacles
 CARVE_END_EXCLUSION = 0.75  # ignore beam samples this close (xy) to the beam's own hit point
 
@@ -120,9 +121,16 @@ class HeightMap:
     (e.g. the organisers' layout plan) can be loaded with :meth:`from_prior`.
     """
 
-    def __init__(self, spec: GridSpec, arena: ArenaConfig) -> None:
+    def __init__(self, spec: GridSpec, arena: ArenaConfig, confirm_scans: int = 1) -> None:
         self.spec = spec
         self.arena = arena
+        # A cell grows only once this many scans (within CONFIRM_WINDOW scans) saw it that tall.
+        # 1 = trust every single hit. With 2, one stray point (a misplaced facade hit with the
+        # top-beam margin, a reflection) cannot block a cell: real surfaces are hit by every scan.
+        self.confirm_scans = max(int(confirm_scans), 1)
+        self._pending: FloatArray = np.full(spec.shape, -np.inf)  # unconfirmed proposed height
+        self._pending_scan = np.full(spec.shape, -(10 ** 9), dtype=np.int64)
+        self._scan_count = 0
         self.height: FloatArray = np.zeros(spec.shape)
         self.hit_height: FloatArray = np.zeros(spec.shape)  # highest real lidar hit, no margin
         # Known free space: nothing in a cell's column is taller than this (inf = no knowledge).
@@ -172,12 +180,32 @@ class HeightMap:
         z = np.minimum(z, cap)  # the guessed margin cannot reach into known free space either
         iy, ix, z = iy[ok], ix[ok], z[ok]
         before = self.height.copy()
-        np.maximum.at(self.height, (iy, ix), z)
+        if self.confirm_scans <= 1:
+            np.maximum.at(self.height, (iy, ix), z)
+        else:
+            self._confirm(iy, ix, z)
         self.observed[iy, ix] = True
         grown = int(np.count_nonzero(self.height > before + 0.05))
         if grown or len(iy):
             self.version += 1
         return grown
+
+    def _confirm(self, iy: IntArray, ix: IntArray, z: FloatArray) -> None:
+        """Raise cells only to heights that an earlier recent scan proposed too (2 scans)."""
+        self._scan_count += 1
+        proposed = np.full(self.spec.shape, -np.inf)
+        np.maximum.at(proposed, (iy, ix), z)
+        taller = proposed > self.height + 0.05
+        if not taller.any():
+            return
+        recent = self._pending_scan >= self._scan_count - CONFIRM_WINDOW
+        confirmed = taller & recent & (self._pending > self.height + 0.05)
+        if confirmed.any():
+            self.height[confirmed] = np.minimum(proposed[confirmed], self._pending[confirmed])
+        # Remember this scan's proposal for the next scans (also where it was just confirmed:
+        # a still taller proposal may need confirming next).
+        self._pending[taller] = proposed[taller]
+        self._pending_scan[taller] = self._scan_count
 
     def mark_free(self, x: float, y: float, top: float, radius: float) -> None:
         """Nothing within ``radius`` of (x, y) is taller than ``top``: lower and cap those columns.

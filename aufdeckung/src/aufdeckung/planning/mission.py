@@ -34,8 +34,10 @@ HOLD_RETRY_S = 3.0
 FREE_BELOW_DRONE_M = 0.6  # body half-height plus position noise
 # The cage itself is known structure: its net (and, in the real cage, everything seen through it) is
 # not an obstacle to map. Points outside the cage, within this distance of the net or at the ceiling
-# are dropped. Small on purpose: obstacles may stand right along the edges (Regelwerk 6.4).
-NET_IGNORE_M = 0.5
+# are dropped. 1 m covers the residual position/heading error seen in Gazebo (net hits up to 0.8 m
+# inside the net). An obstacle closer than this to the net goes unmapped, so ArenaConfig.net_margin
+# keeps the drone NET_IGNORE_M + clearance (2.5 m) from the net: such an obstacle stays >= 1.5 m away.
+NET_IGNORE_M = 1.0
 CEILING_IGNORE_M = 0.5
 
 
@@ -89,6 +91,7 @@ class MissionController:
             self.hm = HeightMap(self.spec, self.cfg.arena)
         else:
             raise ValueError("explore=False needs a prior map")
+        self.hm.confirm_scans = max(self.cfg.planner.lidar_confirm_scans, 1)  # lidar on top of a prior too
         if self.cfg.mission.home_clear_radius > 0:
             self.hm.mark_free(self.start[0], self.start[1], 0.0, self.cfg.mission.home_clear_radius)
         self._cage_poly = regular_polygon(self.cfg.arena.diameter, self.cfg.arena.n_sides)

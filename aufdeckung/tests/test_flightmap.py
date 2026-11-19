@@ -39,8 +39,9 @@ def test_tall_building_blocks_with_clearance(cfg: Config, spec: GridSpec) -> Non
 def test_net_margin(cfg: Config, spec: GridSpec) -> None:
     fm = _fm(cfg, spec, [])
     inradius = 22.5 * math.cos(math.pi / 16)
-    assert not fm.flyable[fm.cell(inradius - 1.0, 0.0)]
-    assert fm.flyable[fm.cell(inradius - 2.5, 0.0)]
+    margin = cfg.arena.net_margin
+    assert not fm.flyable[fm.cell(inradius - margin + 0.5, 0.0)]
+    assert fm.flyable[fm.cell(inradius - margin - 0.5, 0.0)]
 
 
 def test_unknown_space_requires_cruise(cfg: Config, spec: GridSpec) -> None:

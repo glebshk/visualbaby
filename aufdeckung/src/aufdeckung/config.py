@@ -23,7 +23,7 @@ class ArenaConfig:
     diameter: float = CAGE_DIAMETER_M
     height: float = CAGE_HEIGHT_M
     n_sides: int = 16
-    net_margin: float = 1.5
+    net_margin: float = 2.5  # no-fly band along the net (see mission.NET_IGNORE_M)
     origin_lat: float = 52.3110  # placeholder, replace with the surveyed cage centre
     origin_lon: float = 10.5600
     origin_alt: float = 80.0
@@ -127,6 +127,8 @@ class PlannerConfig:
     gapfill_step: float = 1.5
     gapfill_min_gain: int = 4
     replan_min_interval: float = 1.0
+    # Scans that must agree before a cell is mapped taller (see HeightMap.confirm_scans).
+    lidar_confirm_scans: int = 2
 
     def __post_init__(self) -> None:
         if self.grid_res <= 0 or self.sample_step <= 0 or self.gapfill_step <= 0:

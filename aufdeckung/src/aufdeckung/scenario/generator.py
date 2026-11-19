@@ -293,6 +293,9 @@ def _rain(lay: _Layout, n: int) -> list[RainZone]:
     return zones
 
 
+START_FROM_NET_M = 4.0
+
+
 def generate(
     preset: str,
     seed: int,
@@ -305,7 +308,9 @@ def generate(
         raise KeyError(f"unknown preset {preset!r}; choose from {sorted(PRESETS)}")
     arena = arena or ArenaConfig()
     rng = np.random.default_rng([seed, sorted(PRESETS).index(preset)])
-    start = (0.0, -float(arena.diameter / 2 * math.cos(math.pi / arena.n_sides) - arena.net_margin - 2.5))
+    # The start pad sits START_FROM_NET_M inside the net, independent of the no-fly band, so that a
+    # changed net_margin does not move it and every seed keeps producing the same arena.
+    start = (0.0, -float(arena.diameter / 2 * math.cos(math.pi / arena.n_sides) - START_FROM_NET_M))
     lay = _Layout(arena=arena, rng=rng, start=start)
     PRESETS[preset](lay)
     targets = _targets(lay, int(rng.integers(n_targets[0], n_targets[1] + 1)))

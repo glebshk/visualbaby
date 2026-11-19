@@ -112,7 +112,8 @@ def test_cage_net_and_outside_world_are_not_mapped(cfg: Config) -> None:
     net = np.array([[0.0, -r_in + 0.2, 8.5], [0.0, -r_in - 3.0, 8.0], [0.0, 0.0, 12.9]])
     edge_box = np.array([[3.0, -r_in + 1.2, 6.0]])  # a building top 1.2 m inside the net
     pts = np.vstack([net, edge_box])
-    ctrl.update(1.0, np.array([0.0, -18.0, 8.0]), (pts, np.zeros(len(pts), dtype=bool)))
+    for t in (1.0, 1.1):  # two scans: a cell must be confirmed (planner.lidar_confirm_scans)
+        ctrl.update(t, np.array([0.0, -18.0, 8.0]), (pts, np.zeros(len(pts), dtype=bool)))
     hm, spec = ctrl.hm, ctrl.spec
     assert hm.height[spec.index(0.0, -r_in + 0.2)] == 0.0
     assert hm.height[spec.index(0.0, 0.0)] == 0.0

@@ -195,3 +195,33 @@ def test_mark_free_lowers_what_was_already_mapped(spec: GridSpec, cfg: Config) -
     hm.integrate_hits(np.array([[0.0, -18.0, 9.0]]), sensor_z=8.0, top_beam=np.array([True]))
     hm.mark_free(0.0, -18.0, 0.0, 2.5)  # take-off pad
     assert hm.height[spec.index(0.0, -18.0)] == 0.0 and hm.hit_height[spec.index(0.0, -18.0)] == 0.0
+
+
+def test_a_single_scan_cannot_raise_a_cell_when_confirmation_is_on(spec: GridSpec, cfg: Config) -> None:
+    # Gazebo flight 6: lidar data was clean (~0 % phantoms per scan), yet at 0.1 % over a whole
+    # flight thousands of stray top-beam points (+2 m margin) blocked cells and trapped the planner.
+    hm = HeightMap(spec, cfg.arena, confirm_scans=2)
+    cell = spec.index(5.0, 0.0)
+    stray = np.array([[5.0, 0.0, 8.4]])
+    hm.integrate_hits(stray, sensor_z=8.0, top_beam=np.array([True]))
+    assert hm.height[cell] == 0.0  # one scan: not believed
+    for _ in range(6):  # later scans see nothing there: the proposal expires
+        hm.integrate_hits(np.array([[-5.0, 0.0, 0.0]]), sensor_z=8.0)
+    hm.integrate_hits(stray, sensor_z=8.0, top_beam=np.array([True]))
+    assert hm.height[cell] == 0.0  # too long ago to count as confirmation
+    wall = np.array([[5.0, 0.0, 6.0], [5.1, 0.1, 5.5]])
+    hm.integrate_hits(wall, sensor_z=8.0)
+    hm.integrate_hits(wall, sensor_z=8.0)
+    assert hm.height[cell] == pytest.approx(6.0)  # two scans agree: mapped
+
+
+def test_confirmation_takes_the_height_both_scans_support(spec: GridSpec, cfg: Config) -> None:
+    hm = HeightMap(spec, cfg.arena, confirm_scans=2)
+    cell = spec.index(5.0, 0.0)
+    hm.integrate_hits(np.array([[5.0, 0.0, 9.0]]), sensor_z=8.0)
+    hm.integrate_hits(np.array([[5.0, 0.0, 6.0]]), sensor_z=8.0)
+    assert hm.height[cell] == pytest.approx(6.0)  # 9 m was seen only once
+    hm.integrate_hits(np.array([[5.0, 0.0, 9.0]]), sensor_z=8.0)
+    assert hm.height[cell] == pytest.approx(6.0)  # the 6 m proposal is not 9 m support
+    hm.integrate_hits(np.array([[5.0, 0.0, 9.0]]), sensor_z=8.0)
+    assert hm.height[cell] == pytest.approx(9.0)
