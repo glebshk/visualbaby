@@ -89,7 +89,8 @@ def test_cage_net_and_outside_world_are_not_mapped(cfg: Config) -> None:
     # it must not become obstacles; an obstacle right along the edge must still be mapped.
     ctrl = MissionController(cfg, (0.0, -18.0))
     r_in = cfg.arena.diameter / 2 * np.cos(np.pi / cfg.arena.n_sides)  # distance to a net panel
-    net = np.array([[0.0, -r_in + 0.2, 8.5], [0.0, -r_in - 3.0, 8.0], [0.0, 0.0, 12.9]])  # net, outside, ceiling
+    # on the net, outside the cage, at the ceiling
+    net = np.array([[0.0, -r_in + 0.2, 8.5], [0.0, -r_in - 3.0, 8.0], [0.0, 0.0, 12.9]])
     edge_box = np.array([[3.0, -r_in + 1.2, 6.0]])  # a building top 1.2 m inside the net
     pts = np.vstack([net, edge_box])
     ctrl.update(1.0, np.array([0.0, -18.0, 8.0]), (pts, np.zeros(len(pts), dtype=bool)))
