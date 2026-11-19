@@ -74,13 +74,13 @@ def test_lagebild_message(cfg: Config) -> None:
 
 
 def test_world_magnetic_field_matches_the_cage_location(cfg: Config) -> None:
-    # Regression (Gazebo flight): the world used PX4's example field (~15 deg east of north) while
-    # PX4 corrects headings with Braunschweig's ~4.6 deg declination. The ~10 deg heading error
-    # rotated every lidar point about the drone: phantom halos around buildings, worse with range.
+    # Regression (Gazebo flights): the world used PX4's example field (~15 deg east of north), which
+    # gave a -7.5 deg heading error (4.6 deg gave +3.5 deg): every lidar point rotated about the drone,
+    # phantom halos around buildings that grew with range.
     import math
 
     root = ET.fromstring(scenario_to_sdf(generate("sparse", 0, cfg.arena), cfg.arena))
     east, north, up = (float(v) for v in root.find("world/magnetic_field").text.split())
-    assert math.degrees(math.atan2(east, north)) == pytest.approx(4.6, abs=0.5)
+    assert math.degrees(math.atan2(east, north)) == pytest.approx(7.8, abs=0.5)  # what PX4 expects
     assert up < 0  # field points down in the northern hemisphere
     assert math.degrees(math.atan2(-up, math.hypot(east, north))) == pytest.approx(67.9, abs=1.0)

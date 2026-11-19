@@ -174,3 +174,24 @@ def test_coverage_map(spec: GridSpec) -> None:
     assert cov.fraction(of) == 0.5
     assert cov.fraction_at(of, 0.5) == 0.0
     assert cov.fraction(np.zeros(spec.shape, dtype=bool)) == 1.0
+
+
+def test_known_free_space_caps_phantoms_but_keeps_real_lower_hits(spec: GridSpec, cfg: Config) -> None:
+    hm = HeightMap(spec, cfg.arena)
+    hm.mark_free(0.0, 0.0, 7.4, 0.35)  # the drone hovered here at 8 m
+    cell = spec.index(0.0, 0.0)
+    # A top-beam phantom at flight height (would become 10 m with the margin) and a real roof below.
+    hm.integrate_hits(np.array([[0.0, 0.0, 8.05]]), sensor_z=8.0, top_beam=np.array([True]))
+    assert hm.height[cell] == pytest.approx(7.4)
+    hm.integrate_hits(np.array([[0.1, 0.1, 5.0]]), sensor_z=8.0)
+    assert hm.height[cell] == pytest.approx(7.4)  # capped, and the 5 m roof is below the cap
+    other = spec.index(3.0, 0.0)
+    hm.integrate_hits(np.array([[3.0, 0.0, 5.0]]), sensor_z=8.0)
+    assert hm.height[other] == pytest.approx(5.0)  # outside known free space nothing changes
+
+
+def test_mark_free_lowers_what_was_already_mapped(spec: GridSpec, cfg: Config) -> None:
+    hm = HeightMap(spec, cfg.arena)
+    hm.integrate_hits(np.array([[0.0, -18.0, 9.0]]), sensor_z=8.0, top_beam=np.array([True]))
+    hm.mark_free(0.0, -18.0, 0.0, 2.5)  # take-off pad
+    assert hm.height[spec.index(0.0, -18.0)] == 0.0 and hm.hit_height[spec.index(0.0, -18.0)] == 0.0

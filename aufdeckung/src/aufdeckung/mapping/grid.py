@@ -125,6 +125,9 @@ class HeightMap:
         self.arena = arena
         self.height: FloatArray = np.zeros(spec.shape)
         self.hit_height: FloatArray = np.zeros(spec.shape)  # highest real lidar hit, no margin
+        # Known free space: nothing in a cell's column is taller than this (inf = no knowledge).
+        # Set where the drone has been (it cannot fly through an obstacle) and at the take-off pad.
+        self.free_cap: FloatArray = np.full(spec.shape, np.inf)
         self.observed: BoolArray = np.zeros(spec.shape, dtype=bool)
         self.version = 0
 
@@ -157,12 +160,16 @@ class HeightMap:
         raw_z = np.where(points[:, 2] < 0.15, 0.0, np.clip(points[:, 2], 0.0, self.arena.height))
         if origin is not None:
             self._carve(np.asarray(origin, dtype=float), points, iy, ix, ok)
+        cap = np.full(len(points), np.inf)
+        cap[ok] = self.free_cap[iy[ok], ix[ok]]
+        raw_z = np.minimum(raw_z, cap)  # above known free space a hit is a phantom
         np.maximum.at(self.hit_height, (iy[ok], ix[ok]), raw_z[ok])
         z = np.clip(points[:, 2], 0.0, self.arena.height)
         if top_beam is not None:
             z = np.where(top_beam & (points[:, 2] >= sensor_z - 0.05),
                          np.minimum(z + UNSEEN_TOP_MARGIN, self.arena.height), z)
         z = np.where(z < 0.15, 0.0, z)  # ground noise
+        z = np.minimum(z, cap)  # the guessed margin cannot reach into known free space either
         iy, ix, z = iy[ok], ix[ok], z[ok]
         before = self.height.copy()
         np.maximum.at(self.height, (iy, ix), z)
@@ -171,6 +178,32 @@ class HeightMap:
         if grown or len(iy):
             self.version += 1
         return grown
+
+    def mark_free(self, x: float, y: float, top: float, radius: float) -> None:
+        """Nothing within ``radius`` of (x, y) is taller than ``top``: lower and cap those columns.
+
+        Used for the drone's own position (it occupies that space, so the columns below it end
+        below it) and for the take-off pad. Hits below the cap, e.g. a roof under the drone, stay.
+        """
+        gx, gy = self.centers_cache()
+        disk = np.hypot(gx - x, gy - y) <= radius
+        if self.spec.contains(x, y):
+            disk[self.spec.index(x, y)] = True  # the cell under (x, y) even if its centre is farther
+        if not disk.any():
+            return
+        cap = max(top, 0.0)
+        self.free_cap[disk] = np.minimum(self.free_cap[disk], cap)
+        lowered = disk & (self.height > cap)
+        if lowered.any():
+            self.height[lowered] = cap
+            self.version += 1
+        self.hit_height[disk] = np.minimum(self.hit_height[disk], cap)
+        self.observed[disk] = True
+
+    def centers_cache(self) -> tuple[FloatArray, FloatArray]:
+        if not hasattr(self, "_centers"):
+            self._centers = self.spec.centers()
+        return self._centers
 
     def _carve(self, origin: FloatArray, points: FloatArray, hit_iy: IntArray, hit_ix: IntArray,
                hit_ok: BoolArray) -> None:

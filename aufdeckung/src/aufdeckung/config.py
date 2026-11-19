@@ -140,6 +140,9 @@ class MissionConfig:
     bonus_window: float = TASK1_BONUS_WINDOW_S
     return_reserve: float = 30.0
     explore: bool = True
+    # Known-free radius around the take-off point (generated arenas keep 3 m clear; for the real
+    # cage take it from the layout plan; 0 disables). Lidar phantoms there made home "unflyable".
+    home_clear_radius: float = 2.5
 
     def __post_init__(self) -> None:
         if self.time_budget <= 0 or self.return_reserve < 0:

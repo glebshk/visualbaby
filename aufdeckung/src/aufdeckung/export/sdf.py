@@ -105,11 +105,13 @@ def _static_model(world: ET.Element, name: str, shape: Shape, rgb: tuple[float, 
         _sub(vis, "transparency", _f(1.0 - alpha))
 
 
-# Earth's field at the cage (WMM, Braunschweig 52.31 N 10.56 E, 2027): declination, inclination,
-# total intensity. PX4 corrects the compass with the declination it looks up for the GPS position, so
-# the simulated field must point the same way, or every heading (and every lidar point) is off.
-# PX4's example worlds use a Zurich-era field pointing ~15 deg east of north: a ~10 deg heading error.
-MAG_DECLINATION_DEG = 4.6
+# Earth's field at the cage (Braunschweig 52.31 N 10.56 E): declination, inclination, total intensity.
+# PX4 corrects the compass with the declination from its own (coarse) lookup table for the GPS
+# position, so the simulated field must point the way PX4 expects, or every heading - and with it every
+# lidar point - is rotated. Measured with scripts/analyze_bag.py on two Gazebo flights: a field 14.6 deg
+# east of north needed -7.5 deg heading correction, 4.6 deg needed +3.5 deg, so PX4 expects about 7.8 deg
+# here (WMM itself says ~4.6). On the real drone the same table mismatch exists: calibrate on site.
+MAG_DECLINATION_DEG = 7.8
 MAG_INCLINATION_DEG = 67.9
 MAG_TOTAL_T = 49.9e-6
 

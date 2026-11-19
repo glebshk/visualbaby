@@ -67,3 +67,18 @@ def test_hold_is_left_as_soon_as_a_way_home_exists(cfg: Config) -> None:
     assert ctrl.phase in (Phase.RETURN, Phase.LAND)
     assert (sp.x, sp.y) != (0.0, -10.0) or sp.z != 8.0  # it is heading somewhere, not holding
     assert any(e.kind == "phase" and "hold ->" in e.detail for e in ctrl.events)
+
+
+def test_phantoms_at_flight_height_around_home_keep_home_flyable(cfg: Config) -> None:
+    # Regression (Gazebo flights): misplaced facade hits at flight height near the take-off pad got
+    # the +2 m top-beam margin, the home cell became "not flyable", and the drone hovered in HOLD.
+    home = (0.0, -18.0)
+    ctrl = MissionController(cfg, home)
+    ring = np.array([[home[0] + r * np.cos(a), home[1] + r * np.sin(a), 8.1]
+                     for r in (0.6, 1.2, 1.8) for a in np.linspace(0, 2 * np.pi, 24, endpoint=False)])
+    ctrl.update(0.0, np.array([home[0], home[1], 0.0]))
+    ctrl.update(2.0, np.array([home[0], home[1], 8.0]), (ring, np.ones(len(ring), dtype=bool)))
+    ctrl.update(3.5, np.array([home[0], home[1], 8.0]))  # rebuild the flight map
+    iy, ix = ctrl.fm.cell(*home)
+    assert ctrl.fm.hard_ok[iy, ix]
+    assert ctrl.phase != Phase.HOLD

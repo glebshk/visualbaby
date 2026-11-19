@@ -31,6 +31,7 @@ from aufdeckung.scenario.model import RainZone
 from aufdeckung.sensors.camera import visible_cells
 
 HOLD_RETRY_S = 3.0
+FREE_BELOW_DRONE_M = 0.6  # body half-height plus position noise
 
 
 class Phase(str, Enum):
@@ -83,6 +84,8 @@ class MissionController:
             self.hm = HeightMap(self.spec, self.cfg.arena)
         else:
             raise ValueError("explore=False needs a prior map")
+        if self.cfg.mission.home_clear_radius > 0:
+            self.hm.mark_free(self.start[0], self.start[1], 0.0, self.cfg.mission.home_clear_radius)
         self.coverage = CoverageMap(self.spec)
         self.need = cage_mask(self.spec, self.cfg.arena)
         fl = self.cfg.flight
@@ -115,6 +118,9 @@ class MissionController:
         rain_active: tuple[RainZone, ...] = (),
     ) -> Setpoint:
         p = (float(pos[0]), float(pos[1]), float(pos[2]))
+        if p[2] > 1.0:
+            # The drone occupies its own position: nothing below it reaches up to it.
+            self.hm.mark_free(p[0], p[1], p[2] - FREE_BELOW_DRONE_M, self.cfg.flight.drone_radius)
         if scan is not None and self.hm.integrate_hits(scan[0], p[2], scan[1], origin=p):
             self._dirty = True
         if tuple(rain_active) != self._rain:

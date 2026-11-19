@@ -324,12 +324,99 @@ def _plot(truth: Truth, phantoms: np.ndarray, path_xy: np.ndarray, out: Path) ->
     print(f"saved {out}")
 
 
+BLOCK_HEIGHT_M = 8.5  # a cell this tall makes its 1.5 m surroundings unflyable at the 10 m limit
+
+
+def replay_blame(bag: dict, truth: Truth, cfg: Config, home: tuple[float, float], plot: Path | None) -> None:
+    """Replay the scans through the mission node's own mapping and say which scan, which beam and
+    which drone state wrongly made cells too tall to fly over, above all around home."""
+    from aufdeckung.mapping.grid import HeightMap
+    from aufdeckung.planning.flightmap import build_flight_map
+    from aufdeckung_ros.conversions import tilt_deg
+
+    beam_step = (cfg.lidar.v_max_deg - cfg.lidar.v_min_deg) / max(cfg.lidar.v_samples - 1, 1)
+    spec = truth.spec
+    hm = HeightMap(spec, cfg.arena)
+    blame: dict[tuple[int, int], dict] = {}
+    t0 = bag["/lidar/points"][0][0] if bag["/lidar/points"] else 0.0
+    for t, pts, pos, yaw, att in scan_inputs(bag, home, 0.0):
+        if att is not None and tilt_deg(att) > 12.0:  # the node's gates
+            continue
+        base = (pos[0], pos[1], pos[2] - LIDAR_ABOVE_BASE_M)  # the node uses the drone position
+        world, top = lidar_to_world(pts, base, yaw, cfg.lidar.v_max_deg, beam_step, attitude_ned=att,
+                                    max_range=20.0)
+        before = hm.height.copy()
+        hm.integrate_hits(world, base[2], top, origin=base)
+        crossed = (hm.height >= BLOCK_HEIGHT_M) & (before < BLOCK_HEIGHT_M) & (truth.allowed < BLOCK_HEIGHT_M)
+        if not crossed.any():
+            continue
+        iy, ix = spec.indices(world[:, 0], world[:, 1])
+        ok = spec.valid(iy, ix)
+        sens = pts[np.isfinite(pts).all(axis=1)]
+        sens = sens[np.linalg.norm(sens, axis=1) >= 0.6]
+        rng_all = np.linalg.norm(sens, axis=1)
+        sens = sens[rng_all < 19.5]
+        for cy, cx in zip(*np.nonzero(crossed)):
+            m = ok & (iy == cy) & (ix == cx) & (world[:, 2] >= BLOCK_HEIGHT_M - 2.5)
+            if not m.any() or len(sens) != len(world):
+                src = None
+            else:
+                k = int(np.argmax(np.where(m, world[:, 2], -np.inf)))
+                v = sens[k]
+                src = dict(range=float(np.linalg.norm(v)), elev=float(np.degrees(np.arctan2(v[2], np.hypot(v[0], v[1])))),
+                           az=float(np.degrees(np.arctan2(v[1], v[0]))), top=bool(top[k]), z=float(world[k, 2]))
+            blame[(int(cy), int(cx))] = dict(t=t - t0, pos=base, tilt=tilt_of(att), src=src,
+                                            height=float(hm.height[cy, cx]), true=float(truth.true_h[cy, cx]))
+    fm = build_flight_map(hm, cfg, (), assume_unknown_below_cruise=True)
+    hy, hx = fm.cell(*home)
+    print("== replay through the mission node's mapping (gates on)")
+    print(f"    wrongly blocking cells (believed >= {BLOCK_HEIGHT_M} m, truth lower): {len(blame)}")
+    print(f"    home cell flyable at the end: {bool(fm.hard_ok[hy, hx])} "
+          f"(required altitude {fm.required_alt[hy, hx]:.2f} m, limit {cfg.flight.max_alt} m)")
+    r_cells = cfg.flight.clearance / spec.res + 1
+    near = sorted(((cy - hy) ** 2 + (cx - hx) ** 2, c, b) for c, b in blame.items()
+                  if (c[0] - hy) ** 2 + (c[1] - hx) ** 2 <= (r_cells + 4) ** 2)
+    print(f"    of them within {cfg.flight.clearance + 2:.1f} m of home: {len(near)}")
+    show = [b for _d, _c, b in near[:8]] or [b for b in sorted(blame.values(), key=lambda b: b["t"])[:8]]
+    print("    culprits (time, cell believed/true height, drone pos, tilt, the beam that raised it):")
+    for b in show:
+        x, y, z = b["pos"]
+        src = b["src"]
+        beam = (f"range {src['range']:5.2f} m, elev {src['elev']:+6.1f} deg, az {src['az']:+7.1f} deg, "
+                f"{'TOP beam (+2 m margin)' if src['top'] else 'not top beam'}, hit z {src['z']:.2f}") if src else "?"
+        print(f"      t={b['t']:6.1f}s  {b['height']:5.2f}/{b['true']:4.2f} m  pos=({x:5.1f},{y:6.1f},{z:4.1f})  "
+              f"tilt {b['tilt']:4.1f}  {beam}")
+    if plot is not None:
+        try:
+            import matplotlib
+            matplotlib.use("Agg")
+            import matplotlib.pyplot as plt
+        except ImportError:
+            return
+        out = plot.with_name("replay_map.png")
+        ext = (spec.xmin, spec.xmin + spec.nx * spec.res, spec.ymin, spec.ymin + spec.ny * spec.res)
+        fig, ax = plt.subplots(figsize=(7, 6))
+        im = ax.imshow(hm.height, origin="lower", extent=ext, vmin=0, vmax=13)
+        fig.colorbar(im, ax=ax, label="believed height [m]")
+        ax.contour(np.linspace(ext[0], ext[1], spec.nx), np.linspace(ext[2], ext[3], spec.ny), truth.true_h,
+                   levels=[0.5], colors="white", linewidths=0.6)
+        if blame:
+            cs = np.array([spec.center(*c) for c in blame])
+            ax.scatter(cs[:, 0], cs[:, 1], s=6, c="red", label="wrongly blocking")
+        ax.plot([home[0]], [home[1]], "w*", ms=12, label="home")
+        ax.legend(loc="upper right")
+        ax.set_title("map from replaying the bag (white: true obstacle outlines)")
+        fig.savefig(out, dpi=110, bbox_inches="tight")
+        print(f"    saved {out}")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("bag", type=Path)
     ap.add_argument("--scenario", type=Path, default=None,
                     help="arena YAML (default: the newest simulation/worlds/*.yaml)")
     ap.add_argument("--plot", type=Path, default=REPO / "out" / "phantoms.png")
+    ap.add_argument("--replay-only", action="store_true", help="only the mapping replay (fast)")
     args = ap.parse_args()
     scenario = args.scenario or max((REPO / "simulation" / "worlds").glob("*.yaml"),
                                     key=lambda p: p.stat().st_mtime)
@@ -337,7 +424,10 @@ def main() -> int:
     truth = Truth(scenario, cfg)
     home = (float(truth.sc.start[0]), float(truth.sc.start[1]))
     print(f"bag {args.bag}, arena {scenario.name}, home {home}")
-    analyze(read_bag(args.bag), truth, cfg, home, args.plot)
+    bag = read_bag(args.bag)
+    replay_blame(bag, truth, cfg, home, args.plot)
+    if not args.replay_only:
+        analyze(bag, truth, cfg, home, args.plot)
     return 0
 
 
