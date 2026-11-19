@@ -129,10 +129,20 @@ class PlannerConfig:
     replan_min_interval: float = 1.0
     # Scans that must agree before a cell is mapped taller (see HeightMap.confirm_scans).
     lidar_confirm_scans: int = 2
+    # Hits farther than this (horizontally) from the drone do not raise cells, they only carve free
+    # space: an attitude error of 2-3 deg moves a hit 20 m away by about 1 m. 12 m is 4 s of
+    # look-ahead at 3 m/s, while the planner replans within a second.
+    lidar_map_range: float = 12.0
+    # Scans taken while the drone tilts more than this are not mapped. The attitude estimate is
+    # least accurate then (Gazebo: >15 deg tilt gave 55 % phantom points, <3 deg gave 5 %).
+    # Only the Gazebo node and the bag analyser apply it: the headless drone does not tilt.
+    lidar_max_tilt_deg: float = 10.0
 
     def __post_init__(self) -> None:
         if self.grid_res <= 0 or self.sample_step <= 0 or self.gapfill_step <= 0:
             raise ValueError("resolutions and steps must be positive")
+        if self.lidar_map_range <= 0 or self.lidar_max_tilt_deg <= 0:
+            raise ValueError("lidar_map_range and lidar_max_tilt_deg must be positive")
         if not 0 <= self.overlap < 1:
             raise ValueError("overlap must be in [0, 1)")
 

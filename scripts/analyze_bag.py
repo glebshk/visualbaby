@@ -256,17 +256,20 @@ def analyze(bag: dict, truth: Truth, cfg: Config, home: tuple[float, float], plo
         results[name] = 100 * ph / max(n, 1)
         print(f"    {name:28s} {results[name]:6.2f} %")
     latency_report(bag)
-    # The mission node's mapping gates (mapping_max_tilt_deg, mapping_max_range), as it maps now.
+    # The mapping gates (planner.lidar_max_tilt_deg, planner.lidar_map_range), as the node maps now.
+    max_tilt, map_range = cfg.planner.lidar_max_tilt_deg, cfg.planner.lidar_map_range
     n = ph = skipped = 0
     for _t, pts, pos, yaw, att in scan_inputs(bag, home, 0.0):
-        if att is not None and tilt_of(att) > 12.0:
+        if att is not None and tilt_of(att) > max_tilt:
             skipped += 1
             continue
-        c, p = truth.phantoms(convert(pts, pos, yaw, att, cfg, max_range=20.0))
+        world = convert(pts, pos, yaw, att, cfg)
+        world = world[np.hypot(world[:, 0] - pos[0], world[:, 1] - pos[1]) <= map_range]
+        c, p = truth.phantoms(world)
         n += int(c.sum())
         ph += int(p.sum())
-    print(f"WITH THE NODE'S GATES (tilt <= 12 deg, range < 20 m): {100 * ph / max(n, 1):.2f} % phantoms, "
-          f"{skipped} of {len(bag['/lidar/points'])} scans skipped")
+    print(f"WITH THE MAPPING GATES (tilt <= {max_tilt:.0f} deg, within {map_range:.0f} m): "
+          f"{100 * ph / max(n, 1):.2f} % phantoms, {skipped} of {len(bag['/lidar/points'])} scans skipped")
 
     print("heading error sweep (rotate points about the drone; the minimum is the real error):")
     coarse = {e: _rate(bag, truth, cfg, home, yaw_err=e) for e in range(-20, 21, 2)}
@@ -332,7 +335,7 @@ def replay_blame(bag: dict, truth: Truth, cfg: Config, home: tuple[float, float]
     mapping, planning) and say which scan, which beam and which drone state wrongly made cells too
     tall to fly over - above all around home - and what the controller decided."""
     from aufdeckung.planning.mission import MissionController
-    from aufdeckung_ros.conversions import tilt_deg
+    from aufdeckung_ros.conversions import MAX_RANGE_MARGIN_M, tilt_deg
 
     beam_step = (cfg.lidar.v_max_deg - cfg.lidar.v_min_deg) / max(cfg.lidar.v_samples - 1, 1)
     spec = truth.spec
@@ -341,20 +344,20 @@ def replay_blame(bag: dict, truth: Truth, cfg: Config, home: tuple[float, float]
     t0 = bag["/lidar/points"][0][0] if bag["/lidar/points"] else 0.0
     for t, pts, pos, yaw, att in scan_inputs(bag, home, 0.0):
         base = np.array([pos[0], pos[1], pos[2] - LIDAR_ABOVE_BASE_M])  # the node uses the drone position
-        if att is not None and tilt_deg(att) > 12.0:  # the node's tilt gate
+        if att is not None and tilt_deg(att) > cfg.planner.lidar_max_tilt_deg:  # the node's tilt gate
             ctrl.update(t - t0, base)
             continue
         world, top = lidar_to_world(pts, tuple(base), yaw, cfg.lidar.v_max_deg, beam_step, attitude_ned=att,
-                                    max_range=20.0)
+                                    max_range=cfg.lidar.max_range)
         sens = pts[np.isfinite(pts).all(axis=1)]  # same filtering as lidar_to_world, to keep indices
         rng = np.linalg.norm(sens, axis=1)
-        sens = sens[(rng >= 0.6) & (rng < 19.5)]
-        keep = inside_mask(ctrl, world) if len(world) else np.zeros(0, dtype=bool)
-        aligned = len(sens) == len(world)
-        world, top = world[keep], top[keep]
-        sens = sens[keep] if aligned else sens
+        sens = sens[(rng >= 0.6) & (rng < cfg.lidar.max_range - MAX_RANGE_MARGIN_M)]
         before = ctrl.hm.height.copy()
-        ctrl.update(t - t0, base, (world, top))
+        ctrl.update(t - t0, base, (world, top))  # the controller decides itself which hits to map
+        keep = ctrl.mapping_mask(world, tuple(base)) if len(world) else np.zeros(0, dtype=bool)
+        aligned = len(sens) == len(world)
+        world, top = world[keep], top[keep]  # only mapped hits can be the culprit
+        sens = sens[keep] if aligned else sens
         crossed = (ctrl.hm.height >= BLOCK_HEIGHT_M) & (before < BLOCK_HEIGHT_M) & (truth.allowed < BLOCK_HEIGHT_M)
         if not crossed.any():
             continue
@@ -457,7 +460,7 @@ def heading_timeline(bag: dict, truth: Truth, cfg: Config, home: tuple[float, fl
     for k, (t, pts, pos, yaw, att) in enumerate(scan_inputs(bag, home, 0.0)):
         if k % every:
             continue
-        world = convert(pts, pos, yaw, att, cfg, max_range=20.0)
+        world = convert(pts, pos, yaw, att, cfg)
         rates = {}
         for e in range(-12, 13):
             c, ph = truth.phantoms(_shifted(world, pos, float(e), 0.0, 0.0))
@@ -486,15 +489,6 @@ def heading_timeline(bag: dict, truth: Truth, cfg: Config, home: tuple[float, fl
             extra = f"   | {k[0]:+.0f} {k[1]:+.0f} {k[2]:+.1f} -> {trials[k]:5.1f} %"
         print(f"    {t - t0:6.1f}  {pos[2]:5.1f}  {tilt_of(att):4.1f}   {px4_head:7.1f}      {att_yaw:7.1f}"
               f"      {best:+3d} deg    {rates[0]:5.1f} % -> {rates[best]:5.1f} %{extra}")
-
-
-def inside_mask(ctrl, world: np.ndarray) -> np.ndarray:  # type: ignore[no-untyped-def]
-    """The controller's known-structure filter as a mask (net, outside, ceiling)."""
-    from aufdeckung.geometry import inside_with_margin
-    from aufdeckung.planning.mission import CEILING_IGNORE_M, NET_IGNORE_M
-
-    return inside_with_margin(world[:, 0], world[:, 1], ctrl._cage_poly, NET_IGNORE_M) & (
-        world[:, 2] < ctrl.cfg.arena.height - CEILING_IGNORE_M)
 
 
 def main() -> int:

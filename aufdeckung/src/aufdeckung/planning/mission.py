@@ -34,9 +34,10 @@ HOLD_RETRY_S = 3.0
 FREE_BELOW_DRONE_M = 0.6  # body half-height plus position noise
 # The cage itself is known structure: its net (and, in the real cage, everything seen through it) is
 # not an obstacle to map. Points outside the cage, within this distance of the net or at the ceiling
-# are dropped. 1 m covers the residual position/heading error seen in Gazebo (net hits up to 0.8 m
-# inside the net). An obstacle closer than this to the net goes unmapped, so ArenaConfig.net_margin
-# keeps the drone NET_IGNORE_M + clearance (2.5 m) from the net: such an obstacle stays >= 1.5 m away.
+# are not mapped (their beams still carve free space). 1 m covers the residual position/heading
+# error seen in Gazebo (net hits up to 0.8 m inside the net). An obstacle closer than this to the
+# net goes unmapped, so ArenaConfig.net_margin keeps the drone NET_IGNORE_M + clearance (2.5 m) from
+# the net: such an obstacle stays >= 1.5 m away.
 NET_IGNORE_M = 1.0
 CEILING_IGNORE_M = 0.5
 
@@ -130,9 +131,8 @@ class MissionController:
         if p[2] > 1.0:
             # The drone occupies its own position: nothing below it reaches up to it.
             self.hm.mark_free(p[0], p[1], p[2] - FREE_BELOW_DRONE_M, self.cfg.flight.drone_radius)
-        if scan is not None:
-            scan = self._drop_known_structure(scan)
-        if scan is not None and self.hm.integrate_hits(scan[0], p[2], scan[1], origin=p):
+        if scan is not None and len(scan[0]) and self.hm.integrate_hits(
+                scan[0], p[2], scan[1], origin=p, mapped=self.mapping_mask(scan[0], p)):
             self._dirty = True
         if tuple(rain_active) != self._rain:
             self._rain = tuple(rain_active)
@@ -164,13 +164,13 @@ class MissionController:
             self._start_return(t, p)
         return self._step(t, p)
 
-    def _drop_known_structure(self, scan: tuple[FloatArray, BoolArray]) -> tuple[FloatArray, BoolArray]:
-        pts, top = scan
-        if len(pts) == 0:
-            return scan
-        keep = inside_with_margin(pts[:, 0], pts[:, 1], self._cage_poly, NET_IGNORE_M) & (
-            pts[:, 2] < self.cfg.arena.height - CEILING_IGNORE_M)
-        return pts[keep], top[keep]
+    def mapping_mask(self, pts: FloatArray, origin: tuple[float, float, float]) -> BoolArray:
+        """Hits that may raise cells: not the known structure (net, ceiling, outside the cage) and
+        within ``lidar_map_range`` of the drone. The others only carve free space."""
+        keep: BoolArray = inside_with_margin(pts[:, 0], pts[:, 1], self._cage_poly, NET_IGNORE_M) & (
+            pts[:, 2] < self.cfg.arena.height - CEILING_IGNORE_M) & (
+            np.hypot(pts[:, 0] - origin[0], pts[:, 1] - origin[1]) <= self.cfg.planner.lidar_map_range)
+        return keep
 
     @property
     def done(self) -> bool:

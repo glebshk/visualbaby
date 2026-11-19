@@ -22,8 +22,10 @@
 
 ```
 lidar points --> HeightMap (2.5D: max surface height per 0.5 m cell + "observed" flag;
-                    top-beam hits get a 2 m "may continue upward" margin, which beams
-                    passing over the cell later carve away again, never below a real hit)
+                    only hits within `planner.lidar_map_range` (12 m) of the drone, not on
+                    the net or ceiling, confirmed by 2 scans; top-beam hits within 10 m get
+                    a 2 m "may continue upward" margin, which beams passing over the cell
+                    later carve away again, never below a real hit; all beams carve)
                     |
                     v
              FlightMap: required altitude per cell

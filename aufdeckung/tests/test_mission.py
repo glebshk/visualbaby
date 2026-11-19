@@ -118,3 +118,17 @@ def test_cage_net_and_outside_world_are_not_mapped(cfg: Config) -> None:
     assert hm.height[spec.index(0.0, -r_in + 0.2)] == 0.0
     assert hm.height[spec.index(0.0, 0.0)] == 0.0
     assert hm.height[spec.index(3.0, -r_in + 1.2)] == pytest.approx(6.0)
+
+
+def test_far_hits_are_mapped_only_from_closer(cfg: Config) -> None:
+    # Regression (Gazebo flight 6): an attitude error of 2-3 deg moves a hit 20 m away by about 1 m,
+    # and such hits drew phantom walls. Beyond planner.lidar_map_range a hit only carves free space.
+    ctrl = MissionController(cfg, (0.0, -18.0))
+    wall = np.array([[0.0, -18.0 + cfg.planner.lidar_map_range + 3.0, 6.0]])
+    cell = ctrl.spec.index(wall[0, 0], wall[0, 1])
+    for t in (1.0, 1.1):  # two scans: a cell must be confirmed (planner.lidar_confirm_scans)
+        ctrl.update(t, np.array([0.0, -18.0, 8.0]), (wall, np.zeros(1, dtype=bool)))
+    assert ctrl.hm.height[cell] == 0.0
+    for t in (2.0, 2.1):
+        ctrl.update(t, np.array([0.0, -12.0, 8.0]), (wall, np.zeros(1, dtype=bool)))
+    assert ctrl.hm.height[cell] == pytest.approx(6.0)

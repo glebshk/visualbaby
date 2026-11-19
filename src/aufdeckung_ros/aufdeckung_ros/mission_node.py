@@ -62,11 +62,8 @@ class AufdeckungNode(Node):
         self.declare_parameter("rate_hz", 10.0)
         self.declare_parameter("auto_start", True)
         self.declare_parameter("lidar_self_filter", SELF_FILTER_RADIUS_M)
-        # Mapping gates. Scans taken while the drone tilts hard carry the largest attitude errors
-        # (Gazebo flight: >15 deg tilt gave 55 % phantom points, <3 deg gave 5 %), and any angle
-        # error grows with distance. Skipping them costs little at 10 scans/s and 3 m/s.
-        self.declare_parameter("mapping_max_tilt_deg", 12.0)
-        self.declare_parameter("mapping_max_range", 20.0)
+        # The mapping gates (tilt, range) are in the config (planner.lidar_max_tilt_deg,
+        # planner.lidar_map_range), shared with the headless simulator and scripts/analyze_bag.py.
         # false: fly on the prior (layout plan) only, no lidar mapping. Separates "does the mission
         # fly" from "is the lidar map right" (Regelwerk 6.4: the layout plan is given in advance).
         self.declare_parameter("use_lidar", True)
@@ -192,7 +189,7 @@ class AufdeckungNode(Node):
             self._warned_no_attitude = True
             self.get_logger().warning("no attitude on /drone/out/attitude: lidar is corrected for yaw only, "
                                       "tilt will put ground hits too high (rebuild px4_to_ros2?)")
-        max_tilt = float(self.get_parameter("mapping_max_tilt_deg").value)
+        max_tilt = self.cfg.planner.lidar_max_tilt_deg
         if now - self._last_gate_log >= 10.0 and self._scans_used + self._scans_skipped:
             self._last_gate_log = now
             self.get_logger().info(f"lidar: {self._scans_used} scans mapped, {self._scans_skipped} skipped "
@@ -201,10 +198,10 @@ class AufdeckungNode(Node):
             self._scans_skipped += 1
             return
         self._scans_used += 1
-        max_range = min(self.cfg.lidar.max_range, float(self.get_parameter("mapping_max_range").value))
+        # max_range only drops no-return beams; the controller decides which hits are near enough to map.
         self.scan = lidar_to_world(pts, self.pos, self.yaw, self.cfg.lidar.v_max_deg, self.beam_step,
                                    min_range=float(self.get_parameter("lidar_self_filter").value),
-                                   attitude_ned=attitude, max_range=max_range)
+                                   attitude_ned=attitude, max_range=self.cfg.lidar.max_range)
 
     def on_rain(self, msg: Float32MultiArray) -> None:
         vals = list(msg.data)

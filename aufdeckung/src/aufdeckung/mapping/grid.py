@@ -21,6 +21,9 @@ from aufdeckung.geometry import (
 
 IntArray = NDArray[np.int64]
 UNSEEN_TOP_MARGIN = 2.0
+# The margin is a guess for walls next to the drone. A far top-beam hit is seen again from closer
+# before the drone gets there, while any attitude error moves it furthest: no margin out there.
+TOP_MARGIN_RANGE_M = 10.0
 CONFIRM_WINDOW = 5  # scans within which a proposed height must be seen again (0.5 s at 10 Hz)
 CARVE_MAX_RANGE = 12.0  # beyond this, beams spread too far apart to vouch for thin obstacles
 CARVE_END_EXCLUSION = 0.75  # ignore beam samples this close (xy) to the beam's own hit point
@@ -149,33 +152,42 @@ class HeightMap:
         return hm
 
     def integrate_hits(self, points: FloatArray, sensor_z: float, top_beam: BoolArray | None = None,
-                       origin: tuple[float, float, float] | FloatArray | None = None) -> int:
+                       origin: tuple[float, float, float] | FloatArray | None = None,
+                       mapped: BoolArray | None = None) -> int:
         """Fuse lidar hit points (N, 3) in world frame. Returns the number of cells that grew.
 
         Hits from the highest beam at or above the sensor height mean the obstacle
-        may continue upward out of view, so the cell is raised by ``UNSEEN_TOP_MARGIN``.
-        Later scans from higher up raise it further if needed.
+        may continue upward out of view, so the cell is raised by ``UNSEEN_TOP_MARGIN``
+        (with ``origin``: only within ``TOP_MARGIN_RANGE_M`` of it). Later scans from higher
+        up or from closer raise it further if needed.
 
         With ``origin`` (the sensor position), beams also carve free space: a beam that passes
         over a cell proves the cell is lower there, which removes that guessed margin again
         (never below a real hit). Without it, a roof edge seen from just below its top stays
         2 m too tall for the whole flight and the roof can never be imaged.
+
+        ``mapped`` selects the hits that may raise cells (default: all). The others (too far
+        away, on the net) still carve: the near part of their beam is as reliable as any other.
         """
         if len(points) == 0:
             return 0
         iy, ix = self.spec.indices(points[:, 0], points[:, 1])
-        ok = self.spec.valid(iy, ix)
-        raw_z = np.where(points[:, 2] < 0.15, 0.0, np.clip(points[:, 2], 0.0, self.arena.height))
+        valid = self.spec.valid(iy, ix)
         if origin is not None:
-            self._carve(np.asarray(origin, dtype=float), points, iy, ix, ok)
+            self._carve(np.asarray(origin, dtype=float), points, iy, ix, valid)
+        ok = valid if mapped is None else valid & mapped
+        raw_z = np.where(points[:, 2] < 0.15, 0.0, np.clip(points[:, 2], 0.0, self.arena.height))
         cap = np.full(len(points), np.inf)
         cap[ok] = self.free_cap[iy[ok], ix[ok]]
         raw_z = np.minimum(raw_z, cap)  # above known free space a hit is a phantom
         np.maximum.at(self.hit_height, (iy[ok], ix[ok]), raw_z[ok])
         z = np.clip(points[:, 2], 0.0, self.arena.height)
         if top_beam is not None:
-            z = np.where(top_beam & (points[:, 2] >= sensor_z - 0.05),
-                         np.minimum(z + UNSEEN_TOP_MARGIN, self.arena.height), z)
+            unseen_top = top_beam & (points[:, 2] >= sensor_z - 0.05)
+            if origin is not None:
+                o = np.asarray(origin, dtype=float)
+                unseen_top &= np.hypot(points[:, 0] - o[0], points[:, 1] - o[1]) <= TOP_MARGIN_RANGE_M
+            z = np.where(unseen_top, np.minimum(z + UNSEEN_TOP_MARGIN, self.arena.height), z)
         z = np.where(z < 0.15, 0.0, z)  # ground noise
         z = np.minimum(z, cap)  # the guessed margin cannot reach into known free space either
         iy, ix, z = iy[ok], ix[ok], z[ok]
@@ -186,7 +198,7 @@ class HeightMap:
             self._confirm(iy, ix, z)
         self.observed[iy, ix] = True
         grown = int(np.count_nonzero(self.height > before + 0.05))
-        if grown or len(iy):
+        if grown or valid.any():  # carving may have lowered cells even without a mapped hit
             self.version += 1
         return grown
 

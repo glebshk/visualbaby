@@ -7,6 +7,7 @@ from aufdeckung.config import Config
 from aufdeckung.geometry import Box, Cylinder
 from aufdeckung.mapping.coverage import CoverageMap
 from aufdeckung.mapping.grid import (
+    TOP_MARGIN_RANGE_M,
     UNSEEN_TOP_MARGIN,
     GridSpec,
     HeightMap,
@@ -69,6 +70,19 @@ def test_top_beam_hits_raise_unseen_tops(spec: GridSpec, cfg: Config) -> None:
     assert hm.height[spec.index(6.0, 0.0)] == pytest.approx(8.5)
 
 
+
+def test_top_beam_margin_only_near_the_sensor(spec: GridSpec, cfg: Config) -> None:
+    # Regression (Gazebo flight 6): far top-beam hits are where attitude errors move points most; a net
+    # hit misplaced 1.8 m inwards got the +2 m margin and became a 10 m wall that trapped the drone.
+    # A far wall is seen again from closer, where the margin applies, before the drone gets there.
+    hm = HeightMap(spec, cfg.arena)
+    near = [TOP_MARGIN_RANGE_M - 1.0, 0.0, 8.2]
+    far = [0.0, TOP_MARGIN_RANGE_M + 4.0, 8.2]
+    hm.integrate_hits(np.array([near, far]), sensor_z=8.0, top_beam=np.array([True, True]),
+                      origin=(0.0, 0.0, 8.0))
+    assert hm.height[spec.index(near[0], near[1])] == pytest.approx(8.2 + UNSEEN_TOP_MARGIN)
+    assert hm.height[spec.index(far[0], far[1])] == pytest.approx(8.2)
+
 def _scan_from(hm: HeightMap, cfg: Config, shapes: list, positions: list[tuple[float, float, float]],
                carve: bool = True) -> None:  # type: ignore[type-arg]
     lidar = LidarSensor(cfg.lidar)
@@ -108,16 +122,22 @@ def test_carving_keeps_margin_on_obstacles_taller_than_the_beams(spec: GridSpec,
     # The backdrop makes beams passing beside the pole return, i.e. bring (misleading) evidence.
     backdrop = Box(14.0, 0.0, 1.0, 30.0, 12.5, name="backdrop")
     hm = HeightMap(spec, cfg.arena)
+    near_only = HeightMap(spec, cfg.arena)
     # Near views, then far views: at 18-22 m the 1 deg beams are ~35 cm apart and can miss the pole.
-    positions = [(x, y, 8.0) for x in (-4.0, 0.0, 2.0) for y in (-6.0, -2.0, 0.0, 2.0, 6.0)]
-    positions += [(x, y, 8.0) for x in (-16.0, -14.0, -12.0) for y in (-3.0, -1.1, 0.4, 1.7, 3.3)]
-    _scan_from(hm, cfg, [shape, backdrop], positions)
+    near = [(x, y, 8.0) for x in (-4.0, 0.0, 2.0) for y in (-6.0, -2.0, 0.0, 2.0, 6.0)]
+    far = [(x, y, 8.0) for x in (-16.0, -14.0, -12.0) for y in (-3.0, -1.1, 0.4, 1.7, 3.3)]
+    _scan_from(hm, cfg, [shape, backdrop], near + far)
+    # The margin applies to hits within TOP_MARGIN_RANGE_M of the drone (two "near" views are farther).
+    _scan_from(near_only, cfg, [shape, backdrop],
+               [v for v in near if np.hypot(v[0] - 6.0, v[1]) < TOP_MARGIN_RANGE_M])
     iy, ix = spec.index(6.0, 0.0)
     around = (slice(iy - 1, iy + 2), slice(ix - 1, ix + 2))
-    # The top is above every beam, so the guessed margin above the highest real hit must stay.
+    # The top is above every beam, so the guessed margin above the highest real hit seen from close
+    # up must stay, and no later view may carve it away. Far top-beam hits count as they are.
     # The map is capped at the cage ceiling.
-    expected = min(hm.hit_height[around].max() + UNSEEN_TOP_MARGIN, cfg.arena.height)
+    expected = min(near_only.hit_height[around].max() + UNSEEN_TOP_MARGIN, cfg.arena.height)
     assert hm.height[around].max() >= expected - 0.1
+    assert hm.height[around].max() >= hm.hit_height[around].max() - 0.05
 
 
 def _pole_with_margin(spec: GridSpec, cfg: Config, x: float) -> tuple[HeightMap, tuple[int, int]]:
@@ -225,3 +245,14 @@ def test_confirmation_takes_the_height_both_scans_support(spec: GridSpec, cfg: C
     assert hm.height[cell] == pytest.approx(6.0)  # the 6 m proposal is not 9 m support
     hm.integrate_hits(np.array([[5.0, 0.0, 9.0]]), sensor_z=8.0)
     assert hm.height[cell] == pytest.approx(9.0)
+
+
+def test_unmapped_hits_carve_but_do_not_raise_cells(spec: GridSpec, cfg: Config) -> None:
+    # Hits that are too far away or on the net are not mapped, but their beams still passed over the
+    # cells in between: they lower a guessed margin like any other beam.
+    hm, cell = _pole_with_margin(spec, cfg, 6.0)
+    over = [12.0, 0.0, 8.0 + 12.0 * (0.7 / 6.0)]  # passes x = 6 at z = 8.7
+    hm.integrate_hits(np.array([over]), sensor_z=8.0, origin=(0.0, 0.0, 8.0), mapped=np.array([False]))
+    assert hm.height[cell] == pytest.approx(8.7, abs=0.15)
+    assert hm.height[spec.index(12.0, 0.0)] == 0.0
+    assert not hm.observed[spec.index(12.0, 0.0)]
